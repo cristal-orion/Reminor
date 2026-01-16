@@ -162,7 +162,7 @@ class MemvidMemory:
         self.mem = memvid_sdk.create(
             str(self.memvid_path),
             enable_lex=True,
-            enable_vec=False  # Usiamo nostri embeddings separati
+            enable_vec=True  # Required for put_many(), we also use separate sentence-transformer embeddings
         )
 
         documents = []

@@ -15,5 +15,8 @@ python-dotenv>=1.0.1
 # HTTP Requests
 requests>=2.32.0
 
+# LLM Multi-Provider Support
+litellm>=1.55.0
+
 # Validation
 email-validator>=2.0.0

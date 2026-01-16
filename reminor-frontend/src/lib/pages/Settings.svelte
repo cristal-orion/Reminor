@@ -14,6 +14,9 @@
         'meta-llama/llama-4-scout-17b-16e-instruct',
         'meta-llama/llama-4-maverick-17b-128e-instruct',
         'qwen/qwen3-32b',
+        'moonshotai/kimi-k2-instruct-0905',
+        'openai/gpt-oss-120b',
+        'openai/gpt-oss-20b',
         'mixtral-8x7b-32768'
       ]
     },
@@ -30,7 +33,7 @@
     {
       id: 'gemini',
       name: 'Google Gemini',
-      models: ['gemini-2.0-flash', 'gemini-1.5-pro', 'gemini-1.5-flash', 'gemini-pro']
+      models: ['gemini-3-pro-preview', 'gemini-3-flash-preview', 'gemini-2.5-flash-preview-04-17', 'gemini-2.0-flash']
     },
     {
       id: 'mistral',

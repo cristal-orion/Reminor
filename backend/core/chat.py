@@ -1,23 +1,54 @@
 """
 Chat Service for Reminor Backend
-Handles AI conversations with journal context
+Handles AI conversations with journal context using LiteLLM for multi-provider support
 """
 
 import os
 import re
-import requests
+import litellm
 from pathlib import Path
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Any
 
 from .memory import MemoryManager
 
+# Disable LiteLLM telemetry
+litellm.telemetry = False
+
 
 class ChatService:
     """
     AI Chat service with journal context awareness.
-    Supports multiple LLM providers (Groq, OpenAI, Anthropic).
+    Supports multiple LLM providers via LiteLLM (Groq, OpenAI, Anthropic, Gemini, Mistral, DeepSeek).
     """
+
+    # Default models per provider (LiteLLM format)
+    DEFAULT_MODELS = {
+        "groq": "groq/llama-3.3-70b-versatile",
+        "openai": "gpt-4o-mini",
+        "anthropic": "claude-3-5-haiku-20241022",
+        "gemini": "gemini/gemini-2.0-flash",
+        "mistral": "mistral/mistral-large-latest",
+        "deepseek": "deepseek/deepseek-chat",
+    }
+
+    # Gemini preview models mapping (user-friendly -> LiteLLM format)
+    GEMINI_MODELS = {
+        "gemini-3-pro-preview": "gemini/gemini-3-pro-preview",
+        "gemini-3-flash-preview": "gemini/gemini-3-flash-preview",
+        "gemini-2.5-flash-preview-04-17": "gemini/gemini-2.5-flash-preview-04-17",
+        "gemini-2.0-flash": "gemini/gemini-2.0-flash",
+    }
+
+    # API key environment variable names per provider
+    API_KEY_ENV_VARS = {
+        "groq": "GROQ_API_KEY",
+        "openai": "OPENAI_API_KEY",
+        "anthropic": "ANTHROPIC_API_KEY",
+        "gemini": "GEMINI_API_KEY",
+        "mistral": "MISTRAL_API_KEY",
+        "deepseek": "DEEPSEEK_API_KEY",
+    }
 
     def __init__(self, memory_manager: MemoryManager):
         """
@@ -32,49 +63,36 @@ class ChatService:
         # Conversation history per user (in-memory, could be Redis)
         self._conversations: Dict[str, List[Dict[str, str]]] = {}
 
-    def get_api_config(self, user_api_key: Optional[str] = None,
-                       provider: str = "groq") -> Dict[str, Any]:
+    def get_litellm_model(self, provider: str, model: Optional[str] = None) -> str:
         """
-        Get API configuration for the specified provider.
+        Get the LiteLLM model string for a provider/model combination.
 
         Args:
-            user_api_key: User's API key (if provided)
-            provider: LLM provider (groq, openai, anthropic)
+            provider: Provider name (groq, openai, anthropic, etc.)
+            model: Optional model name
 
         Returns:
-            Dict with url, headers, model
+            LiteLLM-formatted model string
         """
-        api_key = user_api_key or os.getenv('GROQ_API_KEY')
+        if not model:
+            return self.DEFAULT_MODELS.get(provider, self.DEFAULT_MODELS["groq"])
 
-        configs = {
-            "groq": {
-                "url": "https://api.groq.com/openai/v1/chat/completions",
-                "model": "llama-3.3-70b-versatile",
-                "headers": {
-                    "Content-Type": "application/json",
-                    "Authorization": f"Bearer {api_key}"
-                }
-            },
-            "openai": {
-                "url": "https://api.openai.com/v1/chat/completions",
-                "model": "gpt-4o-mini",
-                "headers": {
-                    "Content-Type": "application/json",
-                    "Authorization": f"Bearer {api_key}"
-                }
-            },
-            "anthropic": {
-                "url": "https://api.anthropic.com/v1/messages",
-                "model": "claude-3-haiku-20240307",
-                "headers": {
-                    "Content-Type": "application/json",
-                    "x-api-key": api_key,
-                    "anthropic-version": "2023-06-01"
-                }
-            }
-        }
-
-        return configs.get(provider, configs["groq"])
+        # LiteLLM format: provider/model (except openai which is just model name)
+        if provider == "openai":
+            return model
+        elif provider == "groq":
+            return f"groq/{model}"
+        elif provider == "anthropic":
+            return model  # Anthropic models don't need prefix
+        elif provider == "gemini":
+            # Use mapping for Gemini models, fallback to gemini/ prefix
+            return self.GEMINI_MODELS.get(model, f"gemini/{model}")
+        elif provider == "mistral":
+            return f"mistral/{model}"
+        elif provider == "deepseek":
+            return f"deepseek/{model}"
+        else:
+            return model
 
     def parse_italian_date_query(self, query: str) -> List[str]:
         """Extract and convert Italian dates to ISO format"""
@@ -262,30 +280,37 @@ Sei l'AI di Reminor, il compagno digitale che ha letto il diario dell'utente.
                    user_name: str = "",
                    user_api_key: Optional[str] = None,
                    provider: str = "groq",
+                   model: Optional[str] = None,
                    include_context: bool = True) -> Dict[str, Any]:
         """
-        Send a chat message and get a response.
+        Send a chat message and get a response using LiteLLM.
 
         Args:
             user_id: User ID
             message: User's message
             user_name: User's name for personalization
-            user_api_key: Optional user API key
-            provider: LLM provider
+            user_api_key: Optional user API key (overrides env)
+            provider: LLM provider (groq, openai, anthropic, gemini, mistral, deepseek)
+            model: Optional model name (uses default for provider if not specified)
             include_context: Whether to include journal context
 
         Returns:
             Dict with response and metadata
         """
-        config = self.get_api_config(user_api_key, provider)
+        # Get API key: user-provided > environment variable
+        api_key = user_api_key
+        if not api_key:
+            env_var = self.API_KEY_ENV_VARS.get(provider, "GROQ_API_KEY")
+            api_key = os.getenv(env_var) or os.getenv("GROQ_API_KEY")
 
-        if not config["headers"].get("Authorization", "").endswith("None"):
-            pass  # API key is set
-        else:
+        if not api_key:
             return {
-                "response": "Errore: API key non configurata",
+                "response": f"Errore: API key non configurata per {provider}",
                 "error": True
             }
+
+        # Get LiteLLM model string
+        litellm_model = self.get_litellm_model(provider, model)
 
         # Get context and knowledge base
         context = ""
@@ -306,41 +331,43 @@ Sei l'AI di Reminor, il compagno digitale che ha letto il diario dell'utente.
         messages.extend(self.get_conversation(user_id))
         messages.append({"role": "user", "content": message})
 
-        # Make API request
+        # Make API request via LiteLLM
         try:
-            payload = {
-                "model": config["model"],
-                "messages": messages,
-                "max_tokens": 1024,
-                "temperature": 0.7
-            }
-
-            response = requests.post(
-                config["url"],
-                headers=config["headers"],
-                json=payload,
-                timeout=30
+            response = await litellm.acompletion(
+                model=litellm_model,
+                messages=messages,
+                max_tokens=1024,
+                temperature=0.7,
+                api_key=api_key,
             )
 
-            response.raise_for_status()
-            data = response.json()
+            assistant_message = response.choices[0].message.content
 
-            assistant_message = data["choices"][0]["message"]["content"]
-
-            # Save to conversation history
+            # Save to conversation history (maintains history across provider switches)
             self.add_message(user_id, "user", message)
             self.add_message(user_id, "assistant", assistant_message)
 
             return {
                 "response": assistant_message,
                 "context_used": bool(context),
-                "model": config["model"],
+                "model": litellm_model,
+                "provider": provider,
                 "error": False
             }
 
-        except requests.exceptions.RequestException as e:
+        except litellm.AuthenticationError as e:
             return {
-                "response": f"Errore nella richiesta API: {str(e)}",
+                "response": f"Errore di autenticazione: API key non valida per {provider}",
+                "error": True
+            }
+        except litellm.RateLimitError as e:
+            return {
+                "response": f"Rate limit raggiunto per {provider}. Riprova tra poco.",
+                "error": True
+            }
+        except litellm.APIConnectionError as e:
+            return {
+                "response": f"Errore di connessione a {provider}: {str(e)}",
                 "error": True
             }
         except Exception as e:

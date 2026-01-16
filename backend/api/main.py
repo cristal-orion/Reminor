@@ -321,12 +321,15 @@ async def chat(
     request: ChatRequest,
     cs: ChatService = Depends(get_chat_service)
 ):
-    """Send a chat message"""
+    """Send a chat message with multi-provider LLM support"""
     try:
         result = await cs.chat(
             user_id=user_id,
             message=request.message,
-            include_context=request.include_context
+            include_context=request.include_context,
+            provider=request.provider or "groq",
+            model=request.model,
+            user_api_key=request.api_key,
         )
 
         if result.get("error"):

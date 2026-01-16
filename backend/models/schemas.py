@@ -109,6 +109,9 @@ class ChatRequest(BaseModel):
     message: str = Field(..., min_length=1)
     include_context: bool = True
     context_days: int = Field(30, ge=1, le=365)
+    provider: Optional[str] = None  # groq, openai, anthropic, gemini, mistral, deepseek
+    model: Optional[str] = None  # Model name (provider-specific)
+    api_key: Optional[str] = None  # User's API key (overrides env)
 
 
 class ChatResponse(BaseModel):

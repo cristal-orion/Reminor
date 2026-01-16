@@ -3,7 +3,7 @@
 // In development, use localhost:8001
 const isDev = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
 const API_BASE = isDev ? 'http://127.0.0.1:8001' : '';
-const API_TIMEOUT = isDev ? 1500 : 30000; // Longer timeout in production
+const API_TIMEOUT = isDev ? 15000 : 30000; // 15s dev, 30s production
 
 // Track backend availability
 let backendAvailable = null; // null = unknown, true = online, false = offline
@@ -120,10 +120,37 @@ export async function getWeeklyEmotions(userId) {
 
 // ==================== CHAT API ====================
 
+/**
+ * Get LLM configuration from localStorage
+ * @returns {Object} LLM config with provider, model, apiKey
+ */
+function getLLMConfig() {
+  try {
+    const saved = localStorage.getItem('reminor_llm_config');
+    if (saved) {
+      return JSON.parse(saved);
+    }
+  } catch (e) {
+    console.error('Error loading LLM config:', e);
+  }
+  // Default to Groq (uses env API key on backend)
+  return { provider: 'groq', model: null, apiKey: null };
+}
+
 export async function sendChatMessage(userId, message, includeContext = true) {
+  const llmConfig = getLLMConfig();
+
+  const payload = {
+    message,
+    include_context: includeContext,
+    provider: llmConfig.provider || 'groq',
+    model: llmConfig.model || null,
+    api_key: llmConfig.apiKey || null,
+  };
+
   return apiCall(`/chat/${userId}`, {
     method: 'POST',
-    body: JSON.stringify({ message, include_context: includeContext }),
+    body: JSON.stringify(payload),
   });
 }
 
