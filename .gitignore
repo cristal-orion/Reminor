@@ -77,7 +77,7 @@ memory_graph.gpickle
 
 # Settings and configuration
 settings.json
-.claude/
+# .claude/ - kept for memory sharing
 
 # Log files
 *.log
@@ -102,9 +102,10 @@ data/
 # Journal entries (personal diary data)
 journal/
 
-# Memvid memory files
+# Memvid memory files (except .claude/)
 *.mv2
 *.npz
+!.claude/*.mv2
 
 # Node modules (frontend)
 node_modules/
