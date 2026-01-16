@@ -1,0 +1,21 @@
+# Dependencies
+node_modules/
+
+# Build output (will be rebuilt in Docker)
+dist/
+
+# Logs
+*.log
+npm-debug.log*
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Vite cache
+.vite/

@@ -1,0 +1,27 @@
+# Reminor Backend Requirements
+
+# Web Framework
+fastapi>=0.109.0
+uvicorn[standard]>=0.27.0
+
+# Validation
+pydantic>=2.5.0
+pydantic[email]
+
+# HTTP Client
+requests>=2.31.0
+httpx>=0.26.0
+
+# Environment
+python-dotenv>=1.0.0
+
+# CORS
+starlette>=0.35.0
+
+# Authentication (for future)
+python-jose[cryptography]>=3.3.0
+passlib[bcrypt]>=1.7.4
+
+# Optional: existing dependencies
+# memvid-sdk (already in main requirements)
+# sentence-transformers (already in main requirements)

@@ -1,0 +1,119 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C extensions
+*.so
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+# lib/ - removed, was blocking frontend src/lib
+lib64/
+
+# Re-include frontend lib folder
+!reminor-frontend/src/lib/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# IDE and Editor files
+.vscode/
+.idea/
+*.code-workspace
+*.sublime-workspace
+*.sublime-project
+
+# OS specific files
+.DS_Store
+.AppleDouble
+._*
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Reminor specific files
+# =====================
+
+# Legacy memory system (kept for testing, not for production)
+memory_system.py
+
+# Environment configuration (keep template)
+.env
+!.env.template
+
+# User data and diary files
+.mysoul_journal/
+journal_data/
+diary_backup/
+
+# Cache and temporary files
+*_cache.json
+*.cache
+enhanced_memory_cache.json
+emotions_cache.json
+memory_graph.gpickle
+
+# Settings and configuration
+settings.json
+.claude/
+
+# Log files
+*.log
+debug.log
+reminor.log
+
+# Backup files
+*.bak
+*.backup
+*.old
+
+# Temporary files
+*.tmp
+*.swp
+*~
+.directory
+.fuse_hidden*
+
+# Data directory (user diary data)
+data/
+
+# Journal entries (personal diary data)
+journal/
+
+# Memvid memory files
+*.mv2
+*.npz
+
+# Node modules (frontend)
+node_modules/
+
+# Frontend build output
+reminor-frontend/dist/
+
+# Playwright MCP
+.playwright-mcp/
+
+# Windows temp files
+nul

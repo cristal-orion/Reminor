@@ -1,0 +1,23 @@
+{
+  "name": "reminor-frontend",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "devDependencies": {
+    "@sveltejs/vite-plugin-svelte": "^6.2.1",
+    "@tailwindcss/postcss": "^4.1.18",
+    "autoprefixer": "^10.4.23",
+    "postcss": "^8.5.6",
+    "svelte": "^5.43.8",
+    "tailwindcss": "^4.1.18",
+    "vite": "^7.2.4"
+  },
+  "dependencies": {
+    "svelte-routing": "^2.13.0"
+  }
+}

@@ -1,0 +1,19 @@
+# Reminor 4.2 - Dependencies for Memvid-based system
+
+# Core API Framework
+fastapi>=0.115.0
+uvicorn>=0.30.0
+python-multipart>=0.0.9
+
+# Memory System (Memvid + Semantic Search)
+memvid-sdk>=2.0.0
+sentence-transformers>=3.0.0
+
+# Configuration and Environment
+python-dotenv>=1.0.1
+
+# HTTP Requests
+requests>=2.32.0
+
+# Validation
+email-validator>=2.0.0

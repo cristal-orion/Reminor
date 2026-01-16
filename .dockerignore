@@ -1,0 +1,60 @@
+# Git
+.git
+.gitignore
+
+# Python
+__pycache__
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+.venv/
+*.egg-info/
+.eggs/
+dist/
+build/
+
+# Node
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Local data (will be mounted as volume)
+data/
+
+# Backup files
+*.backup
+*.bak
+*.mv2
+*.npz
+
+# Logs
+*.log
+logs/
+
+# Claude
+.claude/
+
+# Playwright
+.playwright-mcp/
+
+# Temp
+nul
+*.tmp
+
+# Documentation (optional)
+# README.md
+# LICENSE
