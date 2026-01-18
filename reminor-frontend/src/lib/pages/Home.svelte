@@ -43,7 +43,12 @@
 <div class="home-container">
   <!-- Logo Section -->
   <div class="logo-section">
-    <div class="logo">REMINOR</div>
+    <pre class="ascii-logo">██████╗ ███████╗███╗   ███╗██╗███╗   ██╗ ██████╗ ██████╗
+██╔══██╗██╔════╝████╗ ████║██║████╗  ██║██╔═══██╗██╔══██╗
+██████╔╝█████╗  ██╔████╔██║██║██╔██╗ ██║██║   ██║██████╔╝
+██╔══██╗██╔══╝  ██║╚██╔╝██║██║██║╚██╗██║██║   ██║██╔══██╗
+██║  ██║███████╗██║ ╚═╝ ██║██║██║ ╚████║╚██████╔╝██║  ██║
+╚═╝  ╚═╝╚══════╝╚═╝     ╚═╝╚═╝╚═╝  ╚═══╝ ╚═════╝ ╚═╝  ╚═╝</pre>
     <div class="subtitle">PERSONAL  KNOWLEDGE  RETRIEVAL  SYSTEM</div>
   </div>
 
@@ -79,13 +84,15 @@
     text-align: center;
   }
 
-  .logo {
+  .ascii-logo {
     font-family: 'JetBrains Mono', monospace;
-    font-size: 72px;
+    font-size: 0.85rem;
     font-weight: bold;
+    line-height: 0.85;
     color: white;
-    letter-spacing: 0.15em;
-    text-shadow: none;
+    margin: 0;
+    white-space: pre;
+    text-align: center;
   }
 
   .subtitle {

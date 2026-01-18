@@ -2,7 +2,7 @@
 // In production (Docker), use empty string - nginx proxies to backend
 // In development, use localhost:8001
 const isDev = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-const API_BASE = isDev ? 'http://127.0.0.1:8001' : '';
+const API_BASE = isDev ? 'http://127.0.0.1:8000' : '';
 const API_TIMEOUT = isDev ? 15000 : 30000; // 15s dev, 30s production
 
 // Track backend availability
@@ -114,8 +114,11 @@ export async function getEmotions(userId, date) {
   return apiCall(`/journal/${userId}/entries/${date}/emotions`);
 }
 
-export async function getWeeklyEmotions(userId) {
-  return apiCall(`/journal/${userId}/emotions/weekly`);
+export async function getWeeklyEmotions(userId, startDate = null) {
+  const url = startDate
+    ? `/journal/${userId}/emotions/weekly?start_date=${startDate}`
+    : `/journal/${userId}/emotions/weekly`;
+  return apiCall(url);
 }
 
 // ==================== CHAT API ====================

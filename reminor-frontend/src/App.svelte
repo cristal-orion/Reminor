@@ -48,6 +48,14 @@
       { key: '[ENTER]', label: 'INVIA' },
       { key: '[ESC]', label: 'MENU' },
     ],
+    emozioni: [
+      { key: '←→', label: 'SETTIMANA' },
+      { key: '[SPACE]', label: 'DIARIO' },
+      { key: '[ESC]', label: 'MENU' },
+    ],
+    statistiche: [
+      { key: '[ESC]', label: 'MENU' },
+    ],
     default: [
       { key: '[ESC]', label: 'MENU' },
     ],
@@ -74,7 +82,9 @@
       if (e.key === '2') currentPage.set('diario');
       if (e.key === '3') currentPage.set('calendario');
       if (e.key === '4') currentPage.set('chat');
-      if (e.key === '5') currentPage.set('settings');
+      if (e.key === '5') currentPage.set('emozioni');
+      if (e.key === '6') currentPage.set('statistiche');
+      if (e.key === '7') currentPage.set('settings');
     }
   }
 
@@ -108,17 +118,18 @@
   }
 
   .app-container {
-    min-height: 100vh;
+    height: 100vh;
     display: flex;
     flex-direction: column;
     background-color: black;
     color: white;
+    overflow: hidden;
   }
 
   .main-content {
     flex: 1;
     display: flex;
     flex-direction: column;
-    overflow: hidden;
+    min-height: 0;
   }
 </style>

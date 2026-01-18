@@ -283,31 +283,54 @@ async def get_emotions(
 @app.get("/journal/{user_id}/emotions/weekly")
 async def get_weekly_emotions(
     user_id: str,
+    start_date: Optional[str] = None,
     mm: MemoryManager = Depends(get_memory_manager)
 ):
     """
-    Get emotions for the last 7 days.
-    Returns dict with date -> emotions mapping.
+    Get emotions for a week (7 days starting from Monday of the given week).
+    If start_date is provided, returns the week containing that date.
+    Otherwise returns the current week.
+    Returns dict with date -> emotions mapping including energy_level.
     """
     from datetime import timedelta
 
-    today = datetime.now()
+    if start_date:
+        try:
+            base_date = datetime.strptime(start_date, "%Y-%m-%d")
+        except ValueError:
+            base_date = datetime.now()
+    else:
+        base_date = datetime.now()
+
+    # Find Monday of the week
+    day_of_week = base_date.weekday()  # Monday = 0
+    monday = base_date - timedelta(days=day_of_week)
+
     dates = []
     for i in range(7):
-        d = today - timedelta(days=i)
+        d = monday + timedelta(days=i)
         dates.append(d.strftime("%Y-%m-%d"))
 
-    # Get emotions for all dates
+    # Get full analysis (emotions + insights) for all dates
     result = {}
     for date in dates:
-        emotions = mm.get_emotions(user_id, date)
-        if emotions:
-            result[date] = {
-                "emotions": emotions,
-                "dominant": max(emotions, key=emotions.get) if emotions else None,
-                "intensity": sum(emotions.values()) / len(emotions) if emotions else 0
-            }
-        else:
+        try:
+            analysis = mm.get_full_analysis(user_id, date)
+            if analysis and analysis.get('emotions'):
+                emotions = analysis['emotions']
+                insights = analysis.get('daily_insights', {}) or {}
+                energy_level = insights.get('energy_level', 0.5) if insights else 0.5
+
+                result[date] = {
+                    "emotions": emotions,
+                    "dominant": max(emotions, key=emotions.get) if emotions else None,
+                    "intensity": sum(emotions.values()) / len(emotions) if emotions else 0,
+                    "energy_level": energy_level
+                }
+            else:
+                result[date] = None
+        except Exception as e:
+            print(f"Errore recupero emozioni per {date}: {e}")
             result[date] = None
 
     return {"weekly_emotions": result, "dates": dates}

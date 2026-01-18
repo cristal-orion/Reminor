@@ -144,6 +144,11 @@ class MemoryManager:
         memory = self.get_user_memory(user_id)
         return memory.get_emotions_for_week(dates)
 
+    def get_full_analysis(self, user_id: str, date: str) -> Optional[Dict[str, Any]]:
+        """Get full analysis (emotions + insights) for a date"""
+        memory = self.get_user_memory(user_id)
+        return memory.get_full_analysis(date)
+
     # ==================== STATS ====================
 
     def get_stats(self, user_id: str) -> Dict[str, Any]:

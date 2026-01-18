@@ -55,130 +55,152 @@
   });
 </script>
 
-<div class="scanline"></div>
-
-<main class="flex-1 flex flex-col items-center justify-center px-8 py-10 max-w-[1200px] mx-auto w-full overflow-y-auto">
-  <div class="w-full mb-10 text-center">
-    <h1 class="text-white text-3xl font-bold tracking-[0.3em] uppercase">
-      --- STATISTICHE PERSONALI ---
-    </h1>
-    <p class="text-white/30 text-[10px] mt-4 tracking-[0.5em] uppercase italic">
-      Sistema Operativo Reminor // Accesso Autorizzato
-    </p>
+<div class="stats-page">
+  <main class="stats-container">
+  <div class="page-title">
+    --- STATISTICHE PERSONALI ---
   </div>
 
-  <div class="grid grid-cols-1 md:grid-cols-2 gap-8 w-full">
+  <div class="stats-grid">
     <!-- Streak Card -->
-    <div class="ascii-border p-8 flex flex-col bg-white/[0.03]">
-      <div class="flex justify-between items-start mb-8">
-        <div class="flex items-center gap-4">
-          <span class="material-symbols-outlined pixel-icon-large">local_fire_department</span>
-          <p class="text-white text-xs font-bold tracking-widest uppercase border-b border-dashed border-white/50">Coerenza</p>
+    <div class="ascii-border stat-card">
+      <div class="flex justify-between items-start mb-3">
+        <div class="flex items-center gap-2">
+          <span class="material-symbols-outlined text-xl">local_fire_department</span>
+          <p class="text-white text-[10px] font-bold tracking-widest uppercase">Coerenza</p>
         </div>
-        <span class="text-[10px] text-white/40">ID: 0x01</span>
+        <span class="text-[9px] text-white/40">0x01</span>
       </div>
-      <div class="flex-1 flex flex-col">
-        <p class="text-5xl font-bold tracking-tighter mb-4 uppercase">{stats.streak} Giorni</p>
-        <p class="text-black bg-white text-[10px] font-bold inline-block px-2 py-1 self-start mb-8 tracking-widest">STREAK ATTIVA</p>
-        <div class="mt-auto">
-          <p class="text-[10px] text-white/50 mb-3 uppercase tracking-widest">Attività Recente</p>
-          <div class="flex gap-2">
-            {#each activityDays as active}
-              <div class="w-8 h-8 {active ? 'bg-white' : 'bg-white/10 border border-white/20'}"></div>
-            {/each}
-          </div>
-          <div class="flex justify-between mt-2 text-[9px] text-white/30 uppercase tracking-[0.2em]">
-            <span>LUN</span>
-            <span>DOM</span>
-          </div>
+      <p class="text-3xl font-bold tracking-tighter mb-2">{stats.streak} <span class="text-sm opacity-50">GIORNI</span></p>
+      <p class="text-black bg-white text-[9px] font-bold inline-block px-2 py-0.5 self-start mb-3">STREAK ATTIVA</p>
+      <div class="mt-auto">
+        <div class="flex gap-1">
+          {#each activityDays as active}
+            <div class="w-5 h-5 {active ? 'bg-white' : 'bg-white/10 border border-white/20'}"></div>
+          {/each}
         </div>
       </div>
     </div>
 
     <!-- Words Card -->
-    <div class="ascii-border p-8 flex flex-col bg-white/[0.03]">
-      <div class="flex justify-between items-start mb-8">
-        <div class="flex items-center gap-4">
-          <span class="material-symbols-outlined pixel-icon-large">edit_note</span>
-          <p class="text-white text-xs font-bold tracking-widest uppercase border-b border-dashed border-white/50">Scrittura</p>
+    <div class="ascii-border stat-card">
+      <div class="flex justify-between items-start mb-3">
+        <div class="flex items-center gap-2">
+          <span class="material-symbols-outlined text-xl">edit_note</span>
+          <p class="text-white text-[10px] font-bold tracking-widest uppercase">Scrittura</p>
         </div>
-        <span class="text-[10px] text-white/40">ID: 0x02</span>
+        <span class="text-[9px] text-white/40">0x02</span>
       </div>
-      <div class="flex-1 flex flex-col justify-center">
-        <p class="text-white/40 text-[10px] mb-2 uppercase tracking-widest">Volume Totale</p>
-        <p class="text-6xl font-bold mb-6">{stats.totalWords.toLocaleString()} <span class="text-lg font-light opacity-30">WORDS</span></p>
-        <div class="border-t border-terminal-border pt-6 mt-auto">
-          <div class="flex justify-between items-end">
-            <div>
-              <p class="text-[10px] text-white/40 uppercase tracking-widest">Media/Giorno</p>
-              <p class="text-2xl font-bold">+{stats.avgWords} <span class="text-[10px] font-normal opacity-40">AVG</span></p>
-            </div>
-            <div class="text-right">
-              <p class="text-[10px] text-white/40 uppercase tracking-widest">Trend Settimanale</p>
-              <p class="text-white text-lg font-bold">▲ {stats.trend}</p>
-            </div>
+      <p class="text-3xl font-bold mb-3">{stats.totalWords.toLocaleString()} <span class="text-sm opacity-50">WORDS</span></p>
+      <div class="border-t border-white/20 pt-3 mt-auto">
+        <div class="flex justify-between">
+          <div>
+            <p class="text-[9px] text-white/40 uppercase">Media/Giorno</p>
+            <p class="text-lg font-bold">+{stats.avgWords}</p>
+          </div>
+          <div class="text-right">
+            <p class="text-[9px] text-white/40 uppercase">Trend</p>
+            <p class="text-lg font-bold">▲ {stats.trend}</p>
           </div>
         </div>
       </div>
     </div>
 
     <!-- Mood Card -->
-    <div class="ascii-border p-8 flex flex-col bg-white/[0.03]">
-      <div class="flex justify-between items-start mb-8">
-        <div class="flex items-center gap-4">
-          <span class="material-symbols-outlined pixel-icon-large">mood</span>
-          <p class="text-white text-xs font-bold tracking-widest uppercase border-b border-dashed border-white/50">Mood Prevalente</p>
+    <div class="ascii-border stat-card">
+      <div class="flex justify-between items-start mb-3">
+        <div class="flex items-center gap-2">
+          <span class="material-symbols-outlined text-xl">mood</span>
+          <p class="text-white text-[10px] font-bold tracking-widest uppercase">Mood</p>
         </div>
-        <span class="text-[10px] text-white/40">ID: 0x03</span>
+        <span class="text-[9px] text-white/40">0x03</span>
       </div>
-      <div class="flex-1 flex flex-col justify-between">
-        <div>
-          <p class="text-4xl font-bold uppercase tracking-widest">{stats.dominantMood}</p>
-          <p class="text-white/40 text-[10px] uppercase mt-2 tracking-[0.2em]">Rilevato nell'{stats.moodPercent}% dei log</p>
-        </div>
-        <div class="grid grid-cols-7 items-end gap-3 h-24 mt-8">
-          {#each [30, 90, 70, 40, 60, 20, 50] as height, i}
-            <div class="bg-white/{i === 6 ? '' : '10'} h-[{height}%] border-t border-white/40" style="height: {height}%"></div>
-          {/each}
-        </div>
+      <p class="text-2xl font-bold uppercase tracking-wide mb-1">{stats.dominantMood}</p>
+      <p class="text-white/40 text-[9px] uppercase mb-3">{stats.moodPercent}% dei log</p>
+      <div class="grid grid-cols-7 items-end gap-1 h-12 mt-auto">
+        {#each [30, 90, 70, 40, 60, 20, 50] as height, i}
+          <div class="{i === 1 ? 'bg-white' : 'bg-white/20'}" style="height: {height}%"></div>
+        {/each}
       </div>
     </div>
 
     <!-- Keywords Card -->
-    <div class="ascii-border p-8 flex flex-col bg-white/[0.03]">
-      <div class="flex justify-between items-start mb-6">
-        <div class="flex items-center gap-4">
-          <span class="material-symbols-outlined pixel-icon-large">tag</span>
-          <p class="text-white text-xs font-bold tracking-widest uppercase border-b border-dashed border-white/50">Analisi Testuale</p>
+    <div class="ascii-border stat-card">
+      <div class="flex justify-between items-start mb-3">
+        <div class="flex items-center gap-2">
+          <span class="material-symbols-outlined text-xl">tag</span>
+          <p class="text-white text-[10px] font-bold tracking-widest uppercase">Analisi</p>
         </div>
-        <span class="text-[10px] text-white/40">ID: 0x04</span>
+        <span class="text-[9px] text-white/40">0x04</span>
       </div>
-      <div class="flex-1">
-        {#if stats.topKeywords.length > 0}
-          <ul class="space-y-4 mt-2">
-            {#each stats.topKeywords as kw, i}
-              <li class="flex items-center justify-between group cursor-pointer border-b border-white/5 pb-2">
-                <div class="flex items-center gap-3">
-                  <span class="text-white/40 text-[10px]">{String(i + 1).padStart(2, '0')}.</span>
-                  <span class="text-xs uppercase tracking-[0.2em] group-hover:bg-white group-hover:text-black transition-all px-1">{kw.word}</span>
-                </div>
-                <span class="text-[9px] text-white/30 tracking-widest uppercase">{kw.count} Occur.</span>
-              </li>
-            {/each}
-          </ul>
-        {:else}
-          <div class="flex flex-col items-center justify-center h-full opacity-40">
-            <span class="material-symbols-outlined text-3xl mb-2">analytics</span>
-            <p class="text-[10px] uppercase tracking-widest">Analisi in arrivo</p>
-            <p class="text-[9px] mt-1 opacity-60">Richiede più dati</p>
-          </div>
-        {/if}
-      </div>
+      {#if stats.topKeywords.length > 0}
+        <ul class="space-y-2">
+          {#each stats.topKeywords.slice(0, 4) as kw, i}
+            <li class="flex items-center justify-between text-[10px]">
+              <span class="uppercase">{kw.word}</span>
+              <span class="text-white/30">{kw.count}x</span>
+            </li>
+          {/each}
+        </ul>
+      {:else}
+        <div class="flex flex-col items-center justify-center flex-1 opacity-40">
+          <span class="material-symbols-outlined text-2xl mb-1">analytics</span>
+          <p class="text-[9px] uppercase">In arrivo</p>
+        </div>
+      {/if}
     </div>
   </div>
-</main>
+  </main>
+</div>
 
 <style>
+  .stats-page {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+
+  .stats-container {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    padding: 16px 32px;
+    max-width: 1200px;
+    margin: 0 auto;
+    width: 100%;
+    min-height: 0;
+  }
+
+  .page-title {
+    text-align: center;
+    font-size: 18px;
+    font-weight: bold;
+    letter-spacing: 0.3em;
+    margin-bottom: 16px;
+    flex-shrink: 0;
+  }
+
+  .stats-grid {
+    flex: 1;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: 1fr 1fr;
+    gap: 12px;
+    min-height: 0;
+  }
+
+  .stat-card {
+    display: flex;
+    flex-direction: column;
+    padding: 16px;
+    background: rgba(255, 255, 255, 0.02);
+  }
+
+  .ascii-border {
+    border: 1px solid white;
+  }
+
   .material-symbols-outlined {
     font-family: 'Material Symbols Outlined';
     font-variation-settings: 'FILL' 1, 'wght' 400;

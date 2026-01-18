@@ -102,10 +102,9 @@ data/
 # Journal entries (personal diary data)
 journal/
 
-# Memvid memory files (except .claude/)
+# Memvid memory files
 *.mv2
 *.npz
-!.claude/*.mv2
 
 # Node modules (frontend)
 node_modules/

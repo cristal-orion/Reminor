@@ -6,7 +6,9 @@
     { id: 'diario', label: '[2] DIARIO', key: '2' },
     { id: 'calendario', label: '[3] ARCHIVIO', key: '3' },
     { id: 'chat', label: '[4] CHAT', key: '4' },
-    { id: 'settings', label: '[5] SETTINGS', key: '5' },
+    { id: 'emozioni', label: '[5] EMOZIONI', key: '5' },
+    { id: 'statistiche', label: '[6] STATS', key: '6' },
+    { id: 'settings', label: '[7] SETTINGS', key: '7' },
   ];
 
   function navigate(pageId) {

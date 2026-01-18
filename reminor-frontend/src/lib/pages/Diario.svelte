@@ -1,6 +1,6 @@
 <script>
   import { onMount, onDestroy } from 'svelte';
-  import { currentUser, selectedDate, isLoading } from '../stores.js';
+  import { currentUser, selectedDate, isLoading, entriesCache, diaryCache } from '../stores.js';
   import { getEntry, saveEntry, analyzeEmotions, getEmotions } from '../api.js';
 
   let content = '';
@@ -39,7 +39,27 @@
     return `reminor_emotions_${date}`;
   }
 
+  // Invalidate calendar cache for the month of a given date
+  function invalidateCalendarCache(date) {
+    const [year, month] = date.split('-');
+    const cacheKey = `${$currentUser}-${year}-${month}`;
+    entriesCache.update(cache => {
+      delete cache[cacheKey];
+      return cache;
+    });
+  }
+
   async function loadEntry() {
+    const cacheKey = `${$currentUser}-${$selectedDate}`;
+
+    // Check diary cache first
+    const cached = $diaryCache[cacheKey];
+    if (cached) {
+      content = cached.content || '';
+      emotions = cached.emotions || null;
+      return;
+    }
+
     try {
       isLoading.set(true);
 
@@ -66,6 +86,12 @@
           emotions = null;
         }
       }
+
+      // Store in cache
+      diaryCache.update(cache => {
+        cache[cacheKey] = { content, emotions };
+        return cache;
+      });
     } catch (e) {
       content = '';
       emotions = null;
@@ -83,6 +109,8 @@
       // Try API first
       try {
         await saveEntry($currentUser, $selectedDate, content);
+        // Invalidate calendar cache so it reloads with new entry
+        invalidateCalendarCache($selectedDate);
       } catch (e) {
         // Fallback to localStorage
         localStorage.setItem(getStorageKey($selectedDate), content);
@@ -100,6 +128,13 @@
         emotions = generateMockEmotions(content);
         localStorage.setItem(getEmotionsKey($selectedDate), JSON.stringify(emotions));
       }
+
+      // Update diary cache with new content and emotions
+      const cacheKey = `${$currentUser}-${$selectedDate}`;
+      diaryCache.update(cache => {
+        cache[cacheKey] = { content, emotions };
+        return cache;
+      });
     } catch (e) {
       console.error('Save failed:', e);
     } finally {

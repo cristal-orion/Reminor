@@ -1,11 +1,13 @@
 <script>
   import { onMount, onDestroy } from 'svelte';
+  import { get } from 'svelte/store';
   import { currentUser, currentPage, selectedDate, entriesCache } from '../stores.js';
   import { getEntries } from '../api.js';
 
   let currentMonth = new Date();
   let days = [];
   let entries = {};
+  let isLoading = false;
 
   $: monthName = currentMonth.toLocaleDateString('it-IT', { month: 'long', year: 'numeric' }).toUpperCase();
 
@@ -42,21 +44,43 @@
   }
 
   async function loadEntries() {
+    const year = currentMonth.getFullYear();
+    const month = currentMonth.getMonth();
+    const userId = get(currentUser);
+    const cacheKey = `${userId}-${year}-${String(month + 1).padStart(2, '0')}`;
+
+    // Check cache first (use get() for synchronous access)
+    const cache = get(entriesCache);
+    if (cache[cacheKey]) {
+      entries = cache[cacheKey];
+      generateCalendar();
+      return;
+    }
+
+    // Not in cache, fetch from API
+    isLoading = true;
     try {
-      const year = currentMonth.getFullYear();
-      const month = currentMonth.getMonth();
       const startDate = `${year}-${String(month + 1).padStart(2, '0')}-01`;
       const endDate = `${year}-${String(month + 1).padStart(2, '0')}-31`;
 
-      const data = await getEntries($currentUser, startDate, endDate);
+      const data = await getEntries(userId, startDate, endDate);
       entries = {};
       data.forEach(e => {
         entries[e.date] = e;
       });
+
+      // Store in cache
+      entriesCache.update(c => {
+        c[cacheKey] = entries;
+        return c;
+      });
+
       generateCalendar();
     } catch (e) {
       console.error('Failed to load entries:', e);
       generateCalendar();
+    } finally {
+      isLoading = false;
     }
   }
 

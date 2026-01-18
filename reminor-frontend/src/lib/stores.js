@@ -26,8 +26,11 @@ export const isLoading = writable(false);
 // Chat messages
 export const chatMessages = writable([]);
 
-// Journal entries cache
+// Journal entries cache (for calendar month view)
 export const entriesCache = writable({});
+
+// Individual diary entry cache (for diary page)
+export const diaryCache = writable({});
 
 // Stats cache
 export const statsCache = writable(null);

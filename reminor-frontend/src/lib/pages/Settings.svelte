@@ -514,8 +514,7 @@
     flex: 1;
     display: flex;
     flex-direction: column;
-    height: 100%;
-    overflow: hidden;
+    min-height: 0;
   }
 
   .settings-container {
@@ -525,7 +524,7 @@
     align-items: center;
     padding: 32px 24px;
     overflow-y: auto;
-    max-height: 100%;
+    min-height: 0;
   }
 
   .page-header {
