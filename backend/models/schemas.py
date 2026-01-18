@@ -147,6 +147,12 @@ class SearchResponse(BaseModel):
 
 # ==================== STATS MODELS ====================
 
+class DailyWordCount(BaseModel):
+    """Schema for daily word count"""
+    date: str
+    words: int
+
+
 class JournalStats(BaseModel):
     """Schema for journal statistics"""
     total_entries: int
@@ -157,6 +163,11 @@ class JournalStats(BaseModel):
     first_entry: Optional[str] = None
     last_entry: Optional[str] = None
     weekly_activity: Optional[List[bool]] = None  # Last 7 days activity (Mon-Sun)
+    # Extended stats for dashboard
+    daily_words: Optional[Dict[str, int]] = None  # Last 90 days: date -> word_count
+    recent_daily_words: Optional[List[DailyWordCount]] = None  # Last 14 days for bar chart
+    emotion_averages: Optional[Dict[str, float]] = None  # Average emotion scores
+    writing_hours: Optional[Dict[int, int]] = None  # Hour -> entry count (0-23)
 
 
 class TopTopic(BaseModel):

@@ -33,7 +33,7 @@ from models.schemas import (
     EmotionAnalysis, EmotionScores,
     ChatRequest, ChatResponse,
     SearchQuery, SearchResponse, SearchResult,
-    JournalStats, StatsResponse,
+    JournalStats, StatsResponse, DailyWordCount,
     ImportResponse, ImportedFile, BulkImportRequest
 )
 
@@ -110,7 +110,7 @@ async def health_check():
     return {
         "status": "healthy",
         "timestamp": datetime.now().isoformat(),
-        "version": "1.0.0"
+        "version": "2.0.0-stats-extended"
     }
 
 
@@ -387,21 +387,73 @@ async def get_stats(
     user_id: str,
     mm: MemoryManager = Depends(get_memory_manager)
 ):
-    """Get journal statistics"""
+    """Get journal statistics with extended data for dashboard"""
     from datetime import timedelta
 
     stats = mm.get_stats(user_id)
-
-    # Calculate weekly activity (last 7 days)
     memory = mm.get_user_memory(user_id)
     today = datetime.now()
-    weekly_activity = []
 
+    # Calculate weekly activity (last 7 days)
+    weekly_activity = []
     for i in range(6, -1, -1):  # From 6 days ago to today
         d = today - timedelta(days=i)
         date_str = d.strftime("%Y-%m-%d")
         has_entry = date_str in memory.entries
         weekly_activity.append(has_entry)
+
+    # Calculate daily words for last 90 days (heatmap)
+    daily_words = {}
+    for i in range(89, -1, -1):
+        d = today - timedelta(days=i)
+        date_str = d.strftime("%Y-%m-%d")
+        if date_str in memory.entries:
+            daily_words[date_str] = len(memory.entries[date_str].split())
+        else:
+            daily_words[date_str] = 0
+
+    # Calculate recent daily words for last 14 days (bar chart)
+    recent_daily_words = []
+    for i in range(13, -1, -1):
+        d = today - timedelta(days=i)
+        date_str = d.strftime("%Y-%m-%d")
+        words = len(memory.entries[date_str].split()) if date_str in memory.entries else 0
+        recent_daily_words.append(DailyWordCount(date=date_str, words=words))
+
+    # Calculate emotion averages from all analyzed entries
+    emotion_totals = {}
+    emotion_counts = 0
+    for date_str in memory.entries.keys():
+        emotions = memory.get_emotions(date_str)
+        if emotions:
+            emotion_counts += 1
+            for emotion, score in emotions.items():
+                emotion_totals[emotion] = emotion_totals.get(emotion, 0) + score
+
+    emotion_averages = {}
+    if emotion_counts > 0:
+        for emotion, total in emotion_totals.items():
+            emotion_averages[emotion] = round(total / emotion_counts, 3)
+
+    # Calculate longest streak properly
+    dates = sorted(memory.entries.keys())
+    longest_streak = 0
+    current_run = 0
+    prev_date = None
+
+    for date_str in dates:
+        try:
+            current_date = datetime.strptime(date_str, "%Y-%m-%d")
+            if prev_date is None:
+                current_run = 1
+            elif (current_date - prev_date).days == 1:
+                current_run += 1
+            else:
+                current_run = 1
+            longest_streak = max(longest_streak, current_run)
+            prev_date = current_date
+        except ValueError:
+            continue
 
     return StatsResponse(
         stats=JournalStats(
@@ -409,12 +461,16 @@ async def get_stats(
             total_words=stats.get("total_words", 0),
             average_words=stats.get("average_words", 0),
             current_streak=stats.get("current_streak", 0),
-            longest_streak=stats.get("longest_streak", 0),
+            longest_streak=longest_streak,
             first_entry=stats.get("first_entry"),
             last_entry=stats.get("last_entry"),
-            weekly_activity=weekly_activity
+            weekly_activity=weekly_activity,
+            daily_words=daily_words,
+            recent_daily_words=recent_daily_words,
+            emotion_averages=emotion_averages,
+            writing_hours=None  # TODO: Would need file timestamps
         ),
-        top_topics=[]  # TODO: Implement
+        top_topics=[]  # TODO: Implement keyword extraction
     )
 
 

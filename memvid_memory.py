@@ -58,6 +58,12 @@ class MemvidMemory:
         self.mem = None
         self.entries: Dict[str, str] = {}
 
+        # Cache emozioni in memoria (per evitare problemi di lettura dopo seal)
+        self._emotions_cache: Dict[str, Dict[str, Any]] = {}
+
+        # File JSON per persistere le emozioni (più affidabile di memvid per questo uso)
+        self.emotions_file = self.memvid_path.with_name("emotions.json")
+
         # Embeddings
         self.embedding_model = None
         self.embeddings: Dict[str, Any] = {}  # date -> embedding vector
@@ -79,9 +85,33 @@ class MemvidMemory:
         self._load_embeddings()
         self._ensure_embeddings()
 
+        # Carica emozioni salvate da JSON
+        self._load_emotions_from_json()
+
         print(f"MemvidMemory inizializzato: {self.memvid_path}")
         if HAS_EMBEDDINGS and self.embedding_model:
             print(f"  Ricerca semantica: {len(self.embeddings)} embeddings")
+
+    def _load_emotions_from_json(self):
+        """Carica le emozioni salvate dal file JSON"""
+        if self.emotions_file.exists():
+            try:
+                import json
+                with open(self.emotions_file, 'r', encoding='utf-8') as f:
+                    self._emotions_cache = json.load(f)
+                print(f"  Caricate {len(self._emotions_cache)} emozioni da JSON")
+            except Exception as e:
+                print(f"Errore caricamento emozioni JSON: {e}")
+                self._emotions_cache = {}
+
+    def _save_emotions_to_json(self):
+        """Salva le emozioni nel file JSON"""
+        try:
+            import json
+            with open(self.emotions_file, 'w', encoding='utf-8') as f:
+                json.dump(self._emotions_cache, f, ensure_ascii=False, indent=2)
+        except Exception as e:
+            print(f"Errore salvataggio emozioni JSON: {e}")
 
     def _initialize_embeddings(self):
         """Inizializza il modello di embedding per ricerca semantica"""
@@ -146,16 +176,40 @@ class MemvidMemory:
             print(f"  Embeddings aggiornati: {len(self.embeddings)} totali")
 
     def _initialize_memvid(self):
-        """Inizializza il file Memvid (crea se non esiste, altrimenti apri)"""
+        """Inizializza il file Memvid (crea se non esiste, altrimenti apri in append mode)"""
         if self.memvid_path.exists():
-            # Apri file esistente
-            self.mem = memvid_sdk.use("basic", str(self.memvid_path))
-            stats = self.mem.stats()
-            print(f"Memvid caricato: {stats['frame_count']} frame, {stats['size_bytes']/1024:.1f}KB")
+            # Apri con mode="auto" per permettere append
+            try:
+                self.mem = memvid_sdk.use("basic", str(self.memvid_path), mode="auto")
+                stats = self.mem.stats()
+                print(f"Memvid caricato (append mode): {stats['frame_count']} frame, {stats['size_bytes']/1024:.1f}KB")
+            except Exception as e:
+                print(f"Errore apertura Memvid: {e}")
+                print("Ricreazione file Memvid...")
+                self._recreate_memvid()
         else:
             # Crea nuovo file e indicizza i .txt esistenti
             print("Creazione nuovo file Memvid...")
             self._create_and_index()
+
+    def _recreate_memvid(self):
+        """Ricrea il file Memvid da zero usando i file .txt esistenti"""
+        # Chiudi connessione esistente
+        if self.mem:
+            try:
+                self.mem.close()
+            except:
+                pass
+            self.mem = None
+
+        # Elimina file esistenti
+        if self.memvid_path.exists():
+            self.memvid_path.unlink()
+        if self.embeddings_path.exists():
+            self.embeddings_path.unlink()
+
+        # Ricrea
+        self._create_and_index()
 
     def _create_and_index(self):
         """Crea un nuovo file Memvid e indicizza tutti i file .txt"""
@@ -399,9 +453,11 @@ class MemvidMemory:
         Trova entries concettualmente simili alla query.
         """
         if not self.embedding_model or not self.embeddings:
+            print(f"[SEARCH] Semantic search SKIPPED - model:{bool(self.embedding_model)}, embeddings:{len(self.embeddings) if self.embeddings else 0}")
             return []
 
         try:
+            print(f"[SEARCH] Semantic search START for: '{query[:50]}...' in {len(self.embeddings)} embeddings")
             # Genera embedding della query
             query_embedding = self.embedding_model.encode(query, convert_to_numpy=True)
 
@@ -425,7 +481,9 @@ class MemvidMemory:
 
             # Ordina per similarità decrescente
             results.sort(key=lambda x: -x['score'])
-            return results[:top_n]
+            top_results = results[:top_n]
+            print(f"[SEARCH] Semantic search FOUND {len(top_results)} results (scores: {[f'{r['score']:.2f}' for r in top_results[:3]]})")
+            return top_results
 
         except Exception as e:
             print(f"Errore ricerca semantica: {e}")
@@ -458,35 +516,37 @@ class MemvidMemory:
         Returns:
             True se aggiunto con successo
         """
-        if not self.mem or not content.strip():
+        if not content.strip():
             return False
 
-        try:
-            # Aggiungi a Memvid con full_text nei metadata
-            self.mem.put(
-                title=f"Diario {date}",
-                label="diary",
-                text=content,
-                metadata={"date": date, "full_text": content},
-                tags=["diario"]
-            )
+        # Aggiorna entries dict (sempre)
+        self.entries[date] = content
 
-            # Aggiorna entries dict
-            self.entries[date] = content
+        # Genera e salva embedding per ricerca semantica
+        if self.embedding_model:
+            try:
+                embedding = self.embedding_model.encode(content, convert_to_numpy=True)
+                self.embeddings[date] = embedding
+                self._save_embeddings()
+            except Exception as e:
+                print(f"Errore generazione embedding: {e}")
 
-            # Genera e salva embedding per ricerca semantica
-            if self.embedding_model:
-                try:
-                    embedding = self.embedding_model.encode(content, convert_to_numpy=True)
-                    self.embeddings[date] = embedding
-                    self._save_embeddings()
-                except Exception as e:
-                    print(f"Errore generazione embedding: {e}")
+        # Prova ad aggiungere a Memvid (opzionale, può fallire)
+        if self.mem:
+            try:
+                self.mem.put(
+                    title=f"Diario {date}",
+                    label="diary",
+                    text=content,
+                    metadata={"date": date, "full_text": content},
+                    tags=["diario"]
+                )
+                self.mem.seal()
+            except Exception as e:
+                # Non bloccare se memvid fallisce - i dati sono nei .txt
+                print(f"Memvid put opzionale fallito: {e}")
 
-            return True
-        except Exception as e:
-            print(f"Errore aggiunta entry: {e}")
-            return False
+        return True
 
     def search(self, query: str, limit: int = 5) -> List[Dict[str, Any]]:
         """
@@ -605,7 +665,7 @@ class MemvidMemory:
                       daily_insights: Optional[Dict] = None,
                       profile_updates: Optional[Dict] = None) -> bool:
         """
-        Salva le emozioni per una data specifica in Memvid.
+        Salva le emozioni per una data specifica.
 
         Args:
             date: Data in formato YYYY-MM-DD
@@ -616,35 +676,43 @@ class MemvidMemory:
         Returns:
             True se salvato con successo
         """
-        if not self.mem or not emotions:
+        if not emotions:
             return False
 
         try:
-            import json
-
-            # Prepara metadata con emozioni
-            metadata = {
-                'date': date,
-                'type': 'emotions',
-                'emotions': json.dumps(emotions)
+            # Salva in cache per accesso immediato
+            self._emotions_cache[date] = {
+                'emotions': emotions,
+                'daily_insights': daily_insights,
+                'profile_updates': profile_updates
             }
 
-            if daily_insights:
-                metadata['daily_insights'] = json.dumps(daily_insights)
-            if profile_updates:
-                metadata['profile_updates'] = json.dumps(profile_updates)
+            # Persisti su file JSON (backup affidabile)
+            self._save_emotions_to_json()
 
-            # Crea testo leggibile per la ricerca
-            emotion_text = ", ".join([f"{k}: {v:.1f}" for k, v in emotions.items() if v > 0])
+            # Prova anche a salvare in Memvid (per ricerca)
+            if self.mem:
+                try:
+                    import json
+                    metadata = {
+                        'date': date,
+                        'type': 'emotions',
+                        'emotions': json.dumps(emotions)
+                    }
+                    if daily_insights:
+                        metadata['daily_insights'] = json.dumps(daily_insights)
 
-            # Inserisci come frame con label 'emotions'
-            self.mem.put(
-                title=f"Emozioni {date}",
-                label="emotions",
-                text=f"Emozioni del {date}: {emotion_text}",
-                metadata=metadata,
-                tags=["emozioni", date]
-            )
+                    emotion_text = ", ".join([f"{k}: {v:.1f}" for k, v in emotions.items() if v > 0])
+                    self.mem.put(
+                        title=f"Emozioni {date}",
+                        label="emotions",
+                        text=f"Emozioni del {date}: {emotion_text}",
+                        metadata=metadata,
+                        tags=["emozioni", date]
+                    )
+                    self.mem.seal()
+                except Exception as e:
+                    print(f"Memvid emotions save fallito (JSON backup OK): {e}")
 
             return True
 
@@ -662,20 +730,27 @@ class MemvidMemory:
         Returns:
             Dizionario emozioni o None se non trovato
         """
+        # Prima controlla la cache in memoria
+        if date in self._emotions_cache:
+            cached = self._emotions_cache[date]
+            if cached and 'emotions' in cached:
+                return cached['emotions']
+
         if not self.mem:
             return None
 
         try:
             import json
 
-            # Cerca frame emozioni per questa data
-            results = self.mem.find(f"Emozioni {date}", k=5)
-            hits = results.get('hits', [])
+            # Itera sulla timeline invece di usare find() (che richiede vector index)
+            stats = self.mem.stats()
+            frame_count = stats.get('frame_count', 0)
+            timeline = self.mem.timeline(limit=frame_count)
 
-            for hit in hits:
-                # Verifica che sia il frame giusto
-                if hit.get('title') == f"Emozioni {date}":
-                    uri = hit.get('uri', '')
+            for item in timeline:
+                title = item.get('title', '')
+                if title == f"Emozioni {date}":
+                    uri = item.get('uri', '')
                     if uri:
                         frame = self.mem.frame(uri)
                         metadata = frame.get('extra_metadata', {})
@@ -688,11 +763,15 @@ class MemvidMemory:
                                 # Se è ancora una stringa, decodifica ancora
                                 if isinstance(decoded, str):
                                     decoded = json.loads(decoded)
+                                # Salva in cache
+                                self._emotions_cache[date] = {'emotions': decoded}
                                 return decoded
                             except:
                                 # Fallback: prova a pulire manualmente
                                 clean = emotions_str.strip('"').replace('\\"', '"')
-                                return json.loads(clean)
+                                emotions = json.loads(clean)
+                                self._emotions_cache[date] = {'emotions': emotions}
+                                return emotions
 
             return None
 
@@ -729,6 +808,12 @@ class MemvidMemory:
         Returns:
             Dizionario con emotions, daily_insights, profile_updates
         """
+        # Prima controlla la cache in memoria
+        if date in self._emotions_cache:
+            cached = self._emotions_cache[date]
+            if cached:
+                return cached
+
         if not self.mem:
             return None
 
@@ -751,12 +836,14 @@ class MemvidMemory:
         try:
             import json
 
-            results = self.mem.find(f"Emozioni {date}", k=5)
-            hits = results.get('hits', [])
+            # Itera sulla timeline invece di usare find() (che richiede vector index)
+            stats = self.mem.stats()
+            frame_count = stats.get('frame_count', 0)
+            timeline = self.mem.timeline(limit=frame_count)
 
-            for hit in hits:
-                if hit.get('title') == f"Emozioni {date}":
-                    uri = hit.get('uri', '')
+            for item in timeline:
+                if item.get('title') == f"Emozioni {date}":
+                    uri = item.get('uri', '')
                     if uri:
                         frame = self.mem.frame(uri)
                         metadata = frame.get('extra_metadata', {})
