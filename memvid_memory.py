@@ -17,13 +17,13 @@ except ImportError:
     HAS_MEMVID = False
     print("ATTENZIONE: memvid-sdk non installato. pip install memvid-sdk")
 
-# Modello embedding italiano ottimizzato
+# Modello embedding multilingue (Google EmbeddingGemma)
 try:
     from sentence_transformers import SentenceTransformer
     import numpy as np
     HAS_EMBEDDINGS = True
-    # Modello italiano specifico con Matryoshka (può essere troncato a dimensioni minori)
-    EMBEDDING_MODEL = "nickprock/sentence-bert-base-italian-uncased-sts-matryoshka"
+    # EmbeddingGemma: 100+ lingue, Matryoshka (128-768), ottimo rapporto qualità/peso
+    EMBEDDING_MODEL = "google/embeddinggemma-300m"
 except ImportError:
     HAS_EMBEDDINGS = False
     EMBEDDING_MODEL = None
@@ -482,7 +482,8 @@ class MemvidMemory:
             # Ordina per similarità decrescente
             results.sort(key=lambda x: -x['score'])
             top_results = results[:top_n]
-            print(f"[SEARCH] Semantic search FOUND {len(top_results)} results (scores: {[f'{r['score']:.2f}' for r in top_results[:3]]})")
+            scores_preview = [f"{r['score']:.2f}" for r in top_results[:3]]
+            print(f"[SEARCH] Semantic search FOUND {len(top_results)} results (scores: {scores_preview})")
             return top_results
 
         except Exception as e:
