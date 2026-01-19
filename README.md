@@ -7,25 +7,27 @@ Diario personale con AI, analisi emotiva e memoria semantica.
 ```
 ├── backend/              # FastAPI REST API
 ├── reminor-frontend/     # Svelte 5 SPA
-├── docker-compose.yml    # Deploy con Docker
+├── docker-compose.yml    # Deploy sviluppo
+├── docker-compose.prod.yml # Deploy produzione con Caddy + SSL
 ```
 
 ## Funzionalità
 
 - **Diario** - Scrivi e naviga le pagine del diario con calendario
 - **Chat AI** - Conversa con un assistente che conosce il tuo diario
-- **Analisi Emozioni** - 8 emozioni analizzate automaticamente per ogni pagina
+- **Analisi Emozioni** - 8 emozioni analizzate automaticamente con LLM
 - **Ricerca Semantica** - Trova ricordi per significato, non solo parole chiave
 - **Statistiche** - Streak, volume scrittura, trend emotivi
 - **Knowledge Base** - Estrazione automatica di informazioni personali
 - **Backup/Export** - Download completo in formato ZIP
+- **Autenticazione** - JWT con registrazione e login
 
 ## Quick Start
 
 ### Requisiti
 - Python 3.11+
 - Node.js 18+
-- API key Groq (gratuita su [console.groq.com](https://console.groq.com))
+- Docker (opzionale)
 
 ### Sviluppo locale
 
@@ -34,7 +36,6 @@ Diario personale con AI, analisi emotiva e memoria semantica.
 python -m venv venv
 source venv/bin/activate  # Windows: venv\Scripts\activate
 pip install -r requirements.txt
-cp .env.template .env     # Aggiungi GROQ_API_KEY
 cd backend && uvicorn api.main:app --reload --port 8001
 
 # Frontend (nuovo terminale)
@@ -45,71 +46,118 @@ npm run dev
 
 Apri http://localhost:5173
 
-### Docker
+### Docker (Sviluppo)
 
 ```bash
-cp .env.template .env  # Aggiungi GROQ_API_KEY
-docker-compose up --build
+docker compose up --build
 ```
 
 Apri http://localhost
 
-## Configurazione
+### Docker (Produzione con SSL)
 
-Crea `.env` nella root:
+Per deploy su server con dominio e certificato SSL automatico:
 
-```env
-GROQ_API_KEY=gsk_your_key_here
-DATA_DIR=./data
+```bash
+# Modifica il dominio in Caddyfile
+# Crea .env.production con JWT_SECRET_KEY
+
+docker compose -f docker-compose.prod.yml up --build -d
 ```
 
-### LLM Provider
+Caddy gestisce automaticamente i certificati Let's Encrypt.
 
-Nelle impostazioni dell'app puoi configurare:
-- **Provider**: Groq, OpenAI, Anthropic, Google Gemini, Mistral, DeepSeek
-- **Modello**: Selezionabile per ogni provider
-- **API Key**: Salvata localmente nel browser
+## Configurazione LLM
+
+L'API key per il modello LLM si configura **dall'interfaccia** dell'app:
+
+1. Vai in **Impostazioni** (icona ingranaggio)
+2. Clicca su **Configura LLM**
+3. Seleziona il provider (Groq, OpenAI, Anthropic, Gemini, Mistral, DeepSeek)
+4. Inserisci la tua API key
+5. Salva
+
+La chiave viene salvata localmente nel browser e usata per:
+- Chat AI
+- Analisi delle emozioni
+
+### Provider supportati
+
+| Provider | Modelli esempio | API Key |
+|----------|-----------------|---------|
+| Groq | llama-3.3-70b-versatile | [console.groq.com](https://console.groq.com) |
+| OpenAI | gpt-4o, gpt-4o-mini | [platform.openai.com](https://platform.openai.com) |
+| Anthropic | claude-3-5-sonnet | [console.anthropic.com](https://console.anthropic.com) |
+| Google | gemini-2.0-flash | [aistudio.google.com](https://aistudio.google.com) |
+| Mistral | mistral-large-latest | [console.mistral.ai](https://console.mistral.ai) |
+| DeepSeek | deepseek-chat | [platform.deepseek.com](https://platform.deepseek.com) |
+
+## Variabili d'ambiente (opzionali)
+
+```env
+# Backend
+JWT_SECRET_KEY=your-secret-key    # Per autenticazione (obbligatorio in prod)
+DATA_DIR=./data                    # Directory dati utenti
+```
 
 ## API Endpoints
 
+### Autenticazione
 | Endpoint | Metodo | Descrizione |
 |----------|--------|-------------|
-| `/journal/{user}/entries` | GET/POST | Lista/salva pagine diario |
-| `/journal/{user}/entries/{date}` | GET | Legge pagina specifica |
-| `/journal/{user}/entries/{date}/analyze` | POST | Analizza emozioni |
-| `/journal/{user}/search` | POST | Ricerca semantica |
-| `/journal/{user}/stats` | GET | Statistiche utente |
-| `/journal/{user}/backup/zip` | GET | Download backup |
-| `/chat/{user}` | POST | Messaggio chat AI |
+| `/auth/register` | POST | Registrazione utente |
+| `/auth/login` | POST | Login (ritorna JWT) |
+| `/auth/me` | GET | Info utente corrente |
+| `/auth/refresh` | POST | Rinnova token |
+
+### Diario
+| Endpoint | Metodo | Descrizione |
+|----------|--------|-------------|
+| `/journal/entries` | GET | Lista pagine diario |
+| `/journal/entries` | POST | Salva pagina |
+| `/journal/entries/{date}` | GET | Legge pagina specifica |
+| `/journal/entries/{date}/analyze` | POST | Analizza emozioni (richiede LLM config nel body) |
+| `/journal/entries/{date}/emotions` | GET | Recupera emozioni salvate |
+| `/journal/search` | POST | Ricerca semantica |
+| `/journal/stats` | GET | Statistiche utente |
+| `/journal/backup/zip` | GET | Download backup |
+
+### Chat
+| Endpoint | Metodo | Descrizione |
+|----------|--------|-------------|
+| `/chat` | POST | Messaggio chat AI (richiede LLM config nel body) |
 | `/health` | GET | Health check |
 
 ## Tech Stack
 
 **Backend**
 - FastAPI + Uvicorn
-- Sentence-BERT (italiano) per embeddings
+- LiteLLM (multi-provider: Groq, OpenAI, Anthropic, Gemini, Mistral, DeepSeek)
+- Sentence-Transformers per embeddings
 - Memvid per memoria video-based
-- LiteLLM per multi-provider LLM
+- JWT per autenticazione
+- bcrypt per password hashing
 
 **Frontend**
 - Svelte 5
-- Tailwind CSS
 - Vite
 
 **Deploy**
 - Docker + docker-compose
-- nginx (reverse proxy)
+- Caddy (reverse proxy + SSL automatico Let's Encrypt)
+- nginx (solo sviluppo)
 
 ## Struttura Dati
 
 ```
-data/{user_id}/
-├── journal/
-│   ├── YYYY-MM-DD.txt           # Pagine diario
-│   └── YYYY-MM-DD_emotions.json # Cache emozioni
-├── memory.mv2                   # Memoria semantica (memvid)
-├── memory_embeddings.npz        # Embeddings
-└── knowledge_base.json          # Informazioni estratte
+data/
+├── users.json                      # Database utenti
+└── {user_id}/
+    ├── journal/
+    │   └── YYYY-MM-DD.txt          # Pagine diario
+    ├── emotions.json               # Emozioni analizzate
+    ├── memory.mv2                  # Memoria semantica (memvid)
+    └── user_knowledge.json         # Knowledge base estratta
 ```
 
 ## Licenza
