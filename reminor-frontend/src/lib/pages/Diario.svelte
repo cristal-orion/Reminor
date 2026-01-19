@@ -123,9 +123,18 @@
       // Analyze emotions after save
       try {
         const result = await analyzeEmotions($selectedDate);
-        emotions = result;
+
+        // Check if API returned an error (e.g., missing API key)
+        if (result.error) {
+          console.warn('[Emotions] ' + (result.message || 'Analisi emozioni non disponibile'));
+          // Use simple keyword-based analysis as fallback
+          emotions = generateMockEmotions(content);
+        } else {
+          emotions = result;
+        }
         localStorage.setItem(getEmotionsKey($selectedDate), JSON.stringify(emotions));
       } catch (e) {
+        console.warn('[Emotions] Errore analisi:', e.message);
         // Generate mock emotions based on content for demo
         emotions = generateMockEmotions(content);
         localStorage.setItem(getEmotionsKey($selectedDate), JSON.stringify(emotions));

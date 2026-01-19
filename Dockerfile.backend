@@ -30,8 +30,8 @@ COPY backend/core ./core
 COPY backend/models ./models
 COPY backend/services ./services
 
-# Copy prompts directory if exists
-COPY prompts/ ./prompts/ 2>/dev/null || true
+# Copy prompts directory
+COPY prompts/ ./prompts/
 
 # Create data directory
 RUN mkdir -p /app/data

@@ -38,6 +38,7 @@ from models.schemas import (
     JournalEntryPreview,
     EmotionAnalysis,
     EmotionScores,
+    AnalyzeRequest,
     ChatRequest,
     ChatResponse,
     SearchQuery,
@@ -246,23 +247,45 @@ async def search_entries(
 @app.post("/journal/entries/{date}/analyze", response_model=EmotionAnalysis)
 async def analyze_entry(
     date: str,
+    request: AnalyzeRequest = None,
     current_user: CurrentUser = Depends(get_current_user),
     mm: MemoryManager = Depends(get_memory_manager),
     ea: EmotionsAnalyzer = Depends(get_emotions_analyzer),
 ):
-    """Analyze emotions in a journal entry"""
+    """
+    Analyze emotions in a journal entry using LLM.
+
+    Requires LLM settings (provider, model, api_key) to be provided.
+    If api_key is missing, returns error with message.
+    """
     user_id = current_user.id
     content = mm.get_entry(user_id, date)
 
     if content is None:
         raise HTTPException(status_code=404, detail="Entry not found")
 
-    # Analyze emotions
-    analysis = ea.analyze_full(user_id, content)
+    # Get LLM settings from request (or use defaults)
+    api_key = request.api_key if request else None
+    provider = request.provider if request and request.provider else "groq"
+    model = request.model if request else None
+
+    # Analyze emotions with LLM settings
+    analysis = ea.analyze_full(
+        user_id,
+        content,
+        api_key=api_key,
+        provider=provider,
+        model=model
+    )
     emotions = analysis.get("emotions", {})
 
-    # Save to memory
-    mm.save_emotions(user_id, date, emotions, analysis.get("daily_insights"))
+    # Check for errors
+    has_error = analysis.get("error", False)
+    error_message = analysis.get("message")
+
+    # Only save to memory if no error
+    if not has_error:
+        mm.save_emotions(user_id, date, emotions, analysis.get("daily_insights"))
 
     # Get dominant emotion
     dominant = ea.get_dominant_emotion(emotions)
@@ -281,6 +304,8 @@ async def analyze_entry(
         ),
         dominant_emotion=dominant,
         daily_insights=analysis.get("daily_insights"),
+        error=has_error if has_error else None,
+        message=error_message,
     )
 
 

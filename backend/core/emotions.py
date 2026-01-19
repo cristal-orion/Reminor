@@ -82,20 +82,40 @@ class EmotionsAnalyzer:
             print(f"Error analyzing emotions: {e}")
             return self._simple_analysis(text)
 
-    def analyze_full(self, user_id: str, text: str) -> Dict[str, Any]:
+    def analyze_full(
+        self,
+        user_id: str,
+        text: str,
+        api_key: Optional[str] = None,
+        provider: str = "groq",
+        model: Optional[str] = None
+    ) -> Dict[str, Any]:
         """
         Full analysis including emotions and profile updates.
 
         Args:
             user_id: User ID
             text: Text to analyze
+            api_key: API key for LLM provider
+            provider: LLM provider (groq, openai, anthropic, gemini, mistral, deepseek)
+            model: Specific model (optional)
 
         Returns:
             Dict with emotions, daily_insights, profile_updates
+            If api_key missing, returns error=True and message
         """
         analyzer = self.get_user_analyzer(user_id)
 
         if not analyzer:
+            # Fallback to simple analysis if analyzer not available
+            if not api_key:
+                return {
+                    "emotions": self._simple_analysis(text),
+                    "daily_insights": None,
+                    "profile_updates": None,
+                    "error": True,
+                    "message": "Per l'analisi delle emozioni, configura una API key nelle impostazioni."
+                }
             return {
                 "emotions": self._simple_analysis(text),
                 "daily_insights": None,
@@ -103,13 +123,20 @@ class EmotionsAnalyzer:
             }
 
         try:
-            return analyzer.analyze_full_entry(text)
+            return analyzer.analyze_full_entry(
+                text,
+                api_key=api_key,
+                provider=provider,
+                model=model
+            )
         except Exception as e:
             print(f"Error in full analysis: {e}")
             return {
                 "emotions": self._simple_analysis(text),
                 "daily_insights": None,
-                "profile_updates": None
+                "profile_updates": None,
+                "error": True,
+                "message": str(e)
             }
 
     def get_profile(self, user_id: str) -> Dict[str, Any]:

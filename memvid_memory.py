@@ -17,12 +17,12 @@ except ImportError:
     HAS_MEMVID = False
     print("ATTENZIONE: memvid-sdk non installato. pip install memvid-sdk")
 
-# Modello embedding multilingue (Google EmbeddingGemma)
+# Modello embedding italiano ottimizzato
 try:
     from sentence_transformers import SentenceTransformer
     import numpy as np
     HAS_EMBEDDINGS = True
-    # EmbeddingGemma: 100+ lingue, Matryoshka (128-768), ottimo rapporto qualità/peso
+    # Modello italiano specifico con Matryoshka (può essere troncato a dimensioni minori)
     EMBEDDING_MODEL = "google/embeddinggemma-300m"
 except ImportError:
     HAS_EMBEDDINGS = False

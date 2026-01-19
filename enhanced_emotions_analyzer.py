@@ -2,31 +2,45 @@
 """
 Enhanced EmotionsAnalyzer per MySoul Extreme Journal
 Combina analisi emozioni + profilo psicologico cumulativo
+Usa LiteLLM per supportare qualsiasi provider LLM
 """
 
-import os
 import datetime
-import requests
 import json
 import time
 from pathlib import Path
 from collections import defaultdict
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Any
 import hashlib
 
+# Import LiteLLM for multi-provider support
+try:
+    import litellm
+    litellm.telemetry = False
+    HAS_LITELLM = True
+except ImportError:
+    HAS_LITELLM = False
+    print("[WARNING] LiteLLM non disponibile - analisi emozioni AI disabilitata")
+
+
 class EnhancedEmotionsAnalyzer:
+    """
+    Emotion analyzer that uses LiteLLM for multi-provider LLM support.
+    Supports: Groq, OpenAI, Anthropic, Gemini, Mistral, DeepSeek
+    """
+
+    # Default models per provider (LiteLLM format)
+    DEFAULT_MODELS = {
+        "groq": "groq/llama-3.3-70b-versatile",
+        "openai": "gpt-4o-mini",
+        "anthropic": "claude-3-5-haiku-20241022",
+        "gemini": "gemini/gemini-2.0-flash",
+        "mistral": "mistral/mistral-large-latest",
+        "deepseek": "deepseek/deepseek-chat",
+    }
+
     def __init__(self, journal_dir: Path):
         self.journal_dir = journal_dir
-        self.api_key = os.getenv('GROQ_API_KEY')
-        if not self.api_key:
-            print("[WARNING] GROQ_API_KEY non trovata per EnhancedEmotionsAnalyzer")
-        
-        self.headers = {
-            "Content-Type": "application/json",
-            "Authorization": f"Bearer {self.api_key}"
-        }
-        self.api_url = "https://api.groq.com/openai/v1/chat/completions"
-        self.model = "llama-3.3-70b-versatile"  # Updated to better model
 
         # Lista emozioni standard (per retrocompatibilità)
         self.emotions_list = [
@@ -146,13 +160,64 @@ class EnhancedEmotionsAnalyzer:
         full_analysis = self.analyze_full_entry(text_content)
         return full_analysis.get("emotions", {emotion: 0.0 for emotion in self.emotions_list})
 
-    def analyze_full_entry(self, text_content: str) -> Dict:
+    def get_litellm_model(self, provider: str, model: Optional[str] = None) -> str:
         """
-        Analisi completa di una voce del diario
-        Restituisce: emozioni + profilo insights + aggiorna DB psicologico
+        Get the LiteLLM model string for a provider/model combination.
         """
-        if not self.api_key:
-            return self._get_empty_analysis()
+        if not model:
+            return self.DEFAULT_MODELS.get(provider, self.DEFAULT_MODELS["groq"])
+
+        # LiteLLM format: provider/model (except openai which is just model name)
+        if provider == "openai":
+            return model
+        elif provider == "groq":
+            return f"groq/{model}"
+        elif provider == "anthropic":
+            return model  # Anthropic models don't need prefix
+        elif provider == "gemini":
+            return f"gemini/{model}"
+        elif provider == "mistral":
+            return f"mistral/{model}"
+        elif provider == "deepseek":
+            return f"deepseek/{model}"
+        else:
+            return model
+
+    def analyze_full_entry(
+        self,
+        text_content: str,
+        api_key: Optional[str] = None,
+        provider: str = "groq",
+        model: Optional[str] = None
+    ) -> Dict:
+        """
+        Analisi completa di una voce del diario usando LiteLLM.
+
+        Args:
+            text_content: Testo da analizzare
+            api_key: API key per il provider LLM
+            provider: Provider LLM (groq, openai, anthropic, gemini, mistral, deepseek)
+            model: Modello specifico (opzionale, usa default per provider)
+
+        Returns:
+            Dict con emotions, daily_insights, profile_updates
+            Se api_key mancante, restituisce error=True e message
+        """
+        # Check if LiteLLM is available
+        if not HAS_LITELLM:
+            return {
+                **self._get_empty_analysis(),
+                "error": True,
+                "message": "LiteLLM non disponibile"
+            }
+
+        # Check API key
+        if not api_key:
+            return {
+                **self._get_empty_analysis(),
+                "error": True,
+                "message": "Per l'analisi delle emozioni, configura una API key nelle impostazioni."
+            }
 
         # Cache check
         text_hash = hashlib.md5(text_content.encode('utf-8')).hexdigest()
@@ -163,34 +228,36 @@ class EnhancedEmotionsAnalyzer:
             return self._get_empty_analysis()
 
         # Limita la lunghezza del testo per evitare errori di token
-        # Groq ha limiti sui token, circa 4000 caratteri sono sicuri
         MAX_TEXT_LENGTH = 4000
         if len(text_content) > MAX_TEXT_LENGTH:
             text_content = text_content[:MAX_TEXT_LENGTH] + "..."
             print(f"Testo troncato a {MAX_TEXT_LENGTH} caratteri per limiti API")
-        
+
+        # Get LiteLLM model string
+        litellm_model = self.get_litellm_model(provider, model)
+
         # Costruisci il prompt per l'analisi completa
         prompt = self._build_analysis_prompt(text_content)
-        
-        payload = {
-            "model": self.model,
-            "messages": [
-                {
-                    "role": "system",
-                    "content": "Sei un esperto psicologo specializzato nell'analisi emotiva di testi autobiografici. Il tuo compito è identificare le emozioni presenti nei diari personali con precisione e sensibilità. Rispondi SEMPRE e SOLO con JSON valido, senza alcun testo aggiuntivo prima o dopo. Se non riesci ad analizzare il testo, restituisci comunque un JSON valido con valori 0.0."
-                },
-                {"role": "user", "content": prompt}
-            ],
-            "temperature": 0.3,  # Slightly higher for more nuanced analysis
-            "max_tokens": 1500
-        }
+
+        messages = [
+            {
+                "role": "system",
+                "content": "Sei un esperto psicologo specializzato nell'analisi emotiva di testi autobiografici. Il tuo compito è identificare le emozioni presenti nei diari personali con precisione e sensibilità. Rispondi SEMPRE e SOLO con JSON valido, senza alcun testo aggiuntivo prima o dopo. Se non riesci ad analizzare il testo, restituisci comunque un JSON valido con valori 0.0."
+            },
+            {"role": "user", "content": prompt}
+        ]
 
         try:
-            response = requests.post(self.api_url, headers=self.headers, json=payload, timeout=30)
-            response.raise_for_status()
-            
-            api_response = response.json()
-            response_content = api_response['choices'][0]['message']['content']
+            # Use LiteLLM for API call (synchronous)
+            response = litellm.completion(
+                model=litellm_model,
+                messages=messages,
+                max_tokens=1500,
+                temperature=0.3,
+                api_key=api_key,
+            )
+
+            response_content = response.choices[0].message.content
             
             # Pulisci il contenuto per rimuovere possibili problemi di formato
             # Rimuovi eventuali testi prima/dopo il JSON
@@ -235,9 +302,27 @@ class EnhancedEmotionsAnalyzer:
             
             return structured_result
 
+        except litellm.AuthenticationError as e:
+            print(f"Errore autenticazione API: {e}")
+            return {
+                **self._get_empty_analysis(),
+                "error": True,
+                "message": f"API key non valida per {provider}"
+            }
+        except litellm.RateLimitError as e:
+            print(f"Rate limit raggiunto: {e}")
+            return {
+                **self._get_empty_analysis(),
+                "error": True,
+                "message": f"Rate limit raggiunto per {provider}. Riprova tra poco."
+            }
         except Exception as e:
             print(f"Errore analisi completa: {e}")
-            return self._get_empty_analysis()
+            return {
+                **self._get_empty_analysis(),
+                "error": True,
+                "message": f"Errore durante l'analisi: {str(e)}"
+            }
 
     def _build_analysis_prompt(self, text_content: str) -> str:
         """Costruisce il prompt per l'analisi emotiva approfondita"""

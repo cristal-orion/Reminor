@@ -19,6 +19,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copia il codice backend
 COPY backend/ ./backend/
 COPY memvid_memory.py ./
+COPY enhanced_emotions_analyzer.py ./
 
 # Crea directory per i dati
 RUN mkdir -p /app/data

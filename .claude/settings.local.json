@@ -2,7 +2,8 @@
   "permissions": {
     "allow": [
       "Bash(python -m venv:*)",
-      "Bash(venvScriptspip install -r requirements.txt)"
+      "Bash(venvScriptspip install -r requirements.txt)",
+      "Bash(docker compose:*)"
     ]
   }
 }

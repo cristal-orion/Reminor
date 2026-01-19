@@ -92,6 +92,14 @@ class EmotionScores(BaseModel):
     Motivato: float = Field(0.0, ge=0.0, le=1.0)
 
 
+class AnalyzeRequest(BaseModel):
+    """Schema for emotion analysis request with LLM settings"""
+
+    provider: Optional[str] = None  # groq, openai, anthropic, gemini, mistral, deepseek
+    model: Optional[str] = None  # Model name (provider-specific)
+    api_key: Optional[str] = None  # User's API key
+
+
 class EmotionAnalysis(BaseModel):
     """Schema for emotion analysis result"""
 
@@ -99,6 +107,8 @@ class EmotionAnalysis(BaseModel):
     emotions: EmotionScores
     dominant_emotion: Optional[str] = None
     daily_insights: Optional[Dict[str, Any]] = None
+    error: Optional[bool] = None
+    message: Optional[str] = None  # Error message if api_key missing
 
 
 class WeeklyEmotions(BaseModel):

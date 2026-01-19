@@ -161,8 +161,17 @@ export async function searchEntries(query, limit = 10) {
 // ==================== EMOTIONS API ====================
 
 export async function analyzeEmotions(date) {
+  const llmConfig = getLLMConfig();
+
+  const payload = {
+    provider: llmConfig.provider || 'groq',
+    model: llmConfig.model || null,
+    api_key: llmConfig.apiKey || null,
+  };
+
   return apiCall(`/journal/entries/${date}/analyze`, {
     method: 'POST',
+    body: JSON.stringify(payload),
   });
 }
 
