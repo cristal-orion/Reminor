@@ -9,8 +9,8 @@ WORKDIR /app
 # Copia package files
 COPY reminor-frontend/package*.json ./
 
-# Installa dipendenze
-RUN npm ci --only=production || npm install
+# Installa dipendenze (include devDependencies per vite build)
+RUN npm ci || npm install
 
 # Copia codice frontend
 COPY reminor-frontend/ ./

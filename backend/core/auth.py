@@ -11,7 +11,7 @@ from typing import Optional
 import uuid
 
 from jose import JWTError, jwt
-from passlib.context import CryptContext
+import bcrypt
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
@@ -20,9 +20,6 @@ JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY", "reminor-dev-secret-change-in-produ
 JWT_ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_HOURS = 24
 REFRESH_TOKEN_EXPIRE_DAYS = 30
-
-# Password hashing context
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 # Bearer token security
 bearer_scheme = HTTPBearer(auto_error=False)
@@ -54,13 +51,18 @@ def save_users_db(users: dict) -> None:
 
 
 def hash_password(password: str) -> str:
-    """Hash a password using bcrypt."""
-    return pwd_context.hash(password)
+    """Hash a password using bcrypt directly (avoids passlib compatibility issues)."""
+    password_bytes = password.encode('utf-8')[:72]  # bcrypt 72-byte limit
+    salt = bcrypt.gensalt()
+    hashed = bcrypt.hashpw(password_bytes, salt)
+    return hashed.decode('utf-8')
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     """Verify a password against its hash."""
-    return pwd_context.verify(plain_password, hashed_password)
+    password_bytes = plain_password.encode('utf-8')[:72]  # bcrypt 72-byte limit
+    hashed_bytes = hashed_password.encode('utf-8')
+    return bcrypt.checkpw(password_bytes, hashed_bytes)
 
 
 # ==================== TOKEN FUNCTIONS ====================
