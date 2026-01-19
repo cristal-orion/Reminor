@@ -26,7 +26,7 @@
 
     try {
       isLoading.set(true);
-      const response = await sendChatMessage($currentUser, userMessage);
+      const response = await sendChatMessage(userMessage);
       chatMessages.update(msgs => [...msgs, { role: 'ai', content: response.response }]);
     } catch (e) {
       chatMessages.update(msgs => [...msgs, {

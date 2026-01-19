@@ -1,0 +1,53 @@
+version: '3.8'
+
+services:
+  # Backend FastAPI
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.prod
+    restart: unless-stopped
+    env_file:
+      - .env.production
+    volumes:
+      - reminor_data:/app/data
+    expose:
+      - "8000"
+    networks:
+      - reminor_network
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+
+  # Caddy - Reverse proxy con SSL automatico
+  caddy:
+    build:
+      context: .
+      dockerfile: Dockerfile.caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - reminor_network
+    depends_on:
+      backend:
+        condition: service_healthy
+
+networks:
+  reminor_network:
+    driver: bridge
+
+volumes:
+  reminor_data:
+    name: reminor_data
+  caddy_data:
+    name: caddy_data
+  caddy_config:
+    name: caddy_config

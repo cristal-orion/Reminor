@@ -9,8 +9,10 @@ from datetime import datetime, date
 
 # ==================== USER MODELS ====================
 
+
 class UserCreate(BaseModel):
     """Schema for user registration"""
+
     email: EmailStr
     password: str = Field(..., min_length=8)
     name: Optional[str] = None
@@ -18,12 +20,14 @@ class UserCreate(BaseModel):
 
 class UserLogin(BaseModel):
     """Schema for user login"""
+
     email: EmailStr
     password: str
 
 
 class UserResponse(BaseModel):
     """Schema for user response (no password)"""
+
     id: str
     email: EmailStr
     name: Optional[str] = None
@@ -35,6 +39,7 @@ class UserResponse(BaseModel):
 
 class TokenResponse(BaseModel):
     """Schema for JWT token response"""
+
     access_token: str
     refresh_token: str
     token_type: str = "bearer"
@@ -43,14 +48,17 @@ class TokenResponse(BaseModel):
 
 # ==================== JOURNAL MODELS ====================
 
+
 class JournalEntryCreate(BaseModel):
     """Schema for creating a journal entry"""
-    date: str = Field(..., pattern=r'^\d{4}-\d{2}-\d{2}$')
+
+    date: str = Field(..., pattern=r"^\d{4}-\d{2}-\d{2}$")
     content: str = Field(..., min_length=1)
 
 
 class JournalEntry(BaseModel):
     """Schema for journal entry response"""
+
     date: str
     content: str
     word_count: int
@@ -61,6 +69,7 @@ class JournalEntry(BaseModel):
 
 class JournalEntryPreview(BaseModel):
     """Schema for journal entry preview (list view)"""
+
     date: str
     preview: str
     word_count: int
@@ -69,8 +78,10 @@ class JournalEntryPreview(BaseModel):
 
 # ==================== EMOTIONS MODELS ====================
 
+
 class EmotionScores(BaseModel):
     """Schema for emotion scores - 8 emotions matching frontend"""
+
     Felice: float = Field(0.0, ge=0.0, le=1.0)
     Triste: float = Field(0.0, ge=0.0, le=1.0)
     Arrabbiato: float = Field(0.0, ge=0.0, le=1.0)
@@ -83,6 +94,7 @@ class EmotionScores(BaseModel):
 
 class EmotionAnalysis(BaseModel):
     """Schema for emotion analysis result"""
+
     date: str
     emotions: EmotionScores
     dominant_emotion: Optional[str] = None
@@ -91,6 +103,7 @@ class EmotionAnalysis(BaseModel):
 
 class WeeklyEmotions(BaseModel):
     """Schema for weekly emotion matrix"""
+
     start_date: str
     end_date: str
     days: Dict[str, Optional[EmotionScores]]
@@ -98,14 +111,17 @@ class WeeklyEmotions(BaseModel):
 
 # ==================== CHAT MODELS ====================
 
+
 class ChatMessage(BaseModel):
     """Schema for a single chat message"""
-    role: str = Field(..., pattern=r'^(user|assistant|system)$')
+
+    role: str = Field(..., pattern=r"^(user|assistant|system)$")
     content: str
 
 
 class ChatRequest(BaseModel):
     """Schema for chat request"""
+
     message: str = Field(..., min_length=1)
     include_context: bool = True
     context_days: int = Field(30, ge=1, le=365)
@@ -116,6 +132,7 @@ class ChatRequest(BaseModel):
 
 class ChatResponse(BaseModel):
     """Schema for chat response"""
+
     response: str
     context_used: bool = False
     emotions_detected: Optional[EmotionScores] = None
@@ -123,8 +140,10 @@ class ChatResponse(BaseModel):
 
 # ==================== SEARCH MODELS ====================
 
+
 class SearchQuery(BaseModel):
     """Schema for search request"""
+
     query: str = Field(..., min_length=1)
     limit: int = Field(10, ge=1, le=50)
     semantic: bool = True
@@ -132,6 +151,7 @@ class SearchQuery(BaseModel):
 
 class SearchResult(BaseModel):
     """Schema for a single search result"""
+
     date: str
     content: str
     score: float
@@ -140,6 +160,7 @@ class SearchResult(BaseModel):
 
 class SearchResponse(BaseModel):
     """Schema for search response"""
+
     query: str
     results: List[SearchResult]
     total: int
@@ -147,14 +168,17 @@ class SearchResponse(BaseModel):
 
 # ==================== STATS MODELS ====================
 
+
 class DailyWordCount(BaseModel):
     """Schema for daily word count"""
+
     date: str
     words: int
 
 
 class JournalStats(BaseModel):
     """Schema for journal statistics"""
+
     total_entries: int
     total_words: int
     average_words: int
@@ -165,34 +189,43 @@ class JournalStats(BaseModel):
     weekly_activity: Optional[List[bool]] = None  # Last 7 days activity (Mon-Sun)
     # Extended stats for dashboard
     daily_words: Optional[Dict[str, int]] = None  # Last 90 days: date -> word_count
-    recent_daily_words: Optional[List[DailyWordCount]] = None  # Last 14 days for bar chart
+    recent_daily_words: Optional[List[DailyWordCount]] = (
+        None  # Last 14 days for bar chart
+    )
     emotion_averages: Optional[Dict[str, float]] = None  # Average emotion scores
     writing_hours: Optional[Dict[int, int]] = None  # Hour -> entry count (0-23)
+    writing_trend: Optional[float] = None  # Percentage change vs previous period
 
 
 class TopTopic(BaseModel):
     """Schema for top topic"""
+
     topic: str
     count: int
 
 
 class StatsResponse(BaseModel):
     """Schema for stats dashboard"""
+
     stats: JournalStats
     top_topics: List[TopTopic]
+    ai_summary: Optional[str] = None
     emotion_trends: Optional[Dict[str, List[float]]] = None
 
 
 # ==================== BACKUP MODELS ====================
 
+
 class BackupRequest(BaseModel):
     """Schema for backup request"""
+
     include_emotions: bool = True
-    format: str = Field("json", pattern=r'^(json|zip|mv2)$')
+    format: str = Field("json", pattern=r"^(json|zip|mv2)$")
 
 
 class BackupResponse(BaseModel):
     """Schema for backup response"""
+
     download_url: str
     expires_at: datetime
     size_bytes: int
@@ -201,8 +234,10 @@ class BackupResponse(BaseModel):
 
 # ==================== IMPORT/UPLOAD MODELS ====================
 
+
 class ImportedFile(BaseModel):
     """Schema for a single imported file result"""
+
     filename: str
     date: str
     word_count: int
@@ -212,6 +247,7 @@ class ImportedFile(BaseModel):
 
 class ImportResponse(BaseModel):
     """Schema for bulk import response"""
+
     total_files: int
     imported: int
     skipped: int
@@ -222,12 +258,14 @@ class ImportResponse(BaseModel):
 
 class ImportTextRequest(BaseModel):
     """Schema for importing text content directly"""
-    date: str = Field(..., pattern=r'^\d{4}-\d{2}-\d{2}$')
+
+    date: str = Field(..., pattern=r"^\d{4}-\d{2}-\d{2}$")
     content: str = Field(..., min_length=1)
     filename: Optional[str] = None
 
 
 class BulkImportRequest(BaseModel):
     """Schema for bulk text import"""
+
     entries: List[ImportTextRequest]
     rebuild_vectors: bool = True

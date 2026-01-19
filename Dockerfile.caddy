@@ -1,0 +1,36 @@
+# Dockerfile.caddy - Build frontend + Caddy reverse proxy
+# Multi-stage build per ottimizzare le dimensioni
+
+# Stage 1: Build frontend
+FROM node:20-alpine AS frontend-builder
+
+WORKDIR /app
+
+# Copia package files
+COPY reminor-frontend/package*.json ./
+
+# Installa dipendenze
+RUN npm ci --only=production || npm install
+
+# Copia codice frontend
+COPY reminor-frontend/ ./
+
+# Build produzione
+RUN npm run build
+
+# Stage 2: Caddy con frontend
+FROM caddy:2-alpine
+
+# Copia Caddyfile
+COPY Caddyfile /etc/caddy/Caddyfile
+
+# Copia frontend build
+COPY --from=frontend-builder /app/dist /srv/frontend
+
+# Crea directory logs
+RUN mkdir -p /var/log/caddy
+
+# Esponi porte
+EXPOSE 80 443
+
+# Caddy si avvia automaticamente

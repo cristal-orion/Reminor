@@ -42,7 +42,8 @@
   // Invalidate calendar cache for the month of a given date
   function invalidateCalendarCache(date) {
     const [year, month] = date.split('-');
-    const cacheKey = `${$currentUser}-${year}-${month}`;
+    const userId = $currentUser?.id || 'anon';
+    const cacheKey = `${userId}-${year}-${month}`;
     entriesCache.update(cache => {
       delete cache[cacheKey];
       return cache;
@@ -50,7 +51,8 @@
   }
 
   async function loadEntry() {
-    const cacheKey = `${$currentUser}-${$selectedDate}`;
+    const userId = $currentUser?.id || 'anon';
+    const cacheKey = `${userId}-${$selectedDate}`;
 
     // Check diary cache first
     const cached = $diaryCache[cacheKey];
@@ -65,7 +67,7 @@
 
       // Try API first
       try {
-        const entry = await getEntry($currentUser, $selectedDate);
+        const entry = await getEntry($selectedDate);
         content = entry.content || '';
       } catch (e) {
         // Fallback to localStorage
@@ -75,7 +77,7 @@
 
       // Try to load existing emotions
       try {
-        const emotionData = await getEmotions($currentUser, $selectedDate);
+        const emotionData = await getEmotions($selectedDate);
         emotions = emotionData;
       } catch (e) {
         // Fallback to localStorage
@@ -108,7 +110,7 @@
 
       // Try API first
       try {
-        await saveEntry($currentUser, $selectedDate, content);
+        await saveEntry($selectedDate, content);
         // Invalidate calendar cache so it reloads with new entry
         invalidateCalendarCache($selectedDate);
       } catch (e) {
@@ -120,7 +122,7 @@
 
       // Analyze emotions after save
       try {
-        const result = await analyzeEmotions($currentUser, $selectedDate);
+        const result = await analyzeEmotions($selectedDate);
         emotions = result;
         localStorage.setItem(getEmotionsKey($selectedDate), JSON.stringify(emotions));
       } catch (e) {
@@ -130,7 +132,8 @@
       }
 
       // Update diary cache with new content and emotions
-      const cacheKey = `${$currentUser}-${$selectedDate}`;
+      const userId = $currentUser?.id || 'anon';
+      const cacheKey = `${userId}-${$selectedDate}`;
       diaryCache.update(cache => {
         cache[cacheKey] = { content, emotions };
         return cache;

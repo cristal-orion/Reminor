@@ -1,0 +1,53 @@
+# Caddyfile - Reverse proxy con SSL automatico Let's Encrypt
+# Sostituisci app.reminor.it con il tuo dominio
+
+app.reminor.it {
+    # Abilita compressione
+    encode gzip
+
+    # API Backend - proxy a FastAPI
+    handle /api/* {
+        uri strip_prefix /api
+        reverse_proxy backend:8000
+    }
+
+    # Auth endpoints - proxy diretto
+    handle /auth/* {
+        reverse_proxy backend:8000
+    }
+
+    # Health check
+    handle /health {
+        reverse_proxy backend:8000
+    }
+
+    # Chat endpoint
+    handle /chat* {
+        reverse_proxy backend:8000
+    }
+
+    # Journal endpoints
+    handle /journal/* {
+        reverse_proxy backend:8000
+    }
+
+    # Frontend - file statici
+    handle {
+        root * /srv/frontend
+        try_files {path} /index.html
+        file_server
+    }
+
+    # Headers di sicurezza
+    header {
+        X-Content-Type-Options nosniff
+        X-Frame-Options DENY
+        Referrer-Policy strict-origin-when-cross-origin
+    }
+
+    # Log
+    log {
+        output file /var/log/caddy/access.log
+        format console
+    }
+}

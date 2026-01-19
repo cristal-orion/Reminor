@@ -13,7 +13,7 @@
     try {
       isSearching = true;
       hasSearched = true;
-      const data = await searchEntries($currentUser, query.trim());
+      const data = await searchEntries(query.trim());
       results = data.results || [];
     } catch (e) {
       console.error('Search failed:', e);

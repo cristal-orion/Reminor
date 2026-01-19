@@ -1,5 +1,6 @@
 <script>
-  import { currentPage } from '../stores.js';
+  import { currentPage, currentUser } from '../stores.js';
+  import { logout } from '../auth.js';
 
   const navItems = [
     { id: 'home', label: '[1] DASHBOARD', key: '1' },
@@ -15,6 +16,12 @@
     currentPage.set(pageId);
   }
 
+  function handleLogout() {
+    if (confirm('Sei sicuro di voler uscire?')) {
+      logout();
+    }
+  }
+
   // Clock
   let time = new Date().toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 
@@ -24,6 +31,9 @@
 
   // Date
   $: dateStr = new Date().toLocaleDateString('it-IT', { day: '2-digit', month: 'short', year: 'numeric' }).toUpperCase();
+
+  // User display name
+  $: userName = $currentUser?.name || $currentUser?.email?.split('@')[0] || 'USER';
 </script>
 
 <header class="header">
@@ -41,7 +51,14 @@
     </nav>
   </div>
   <div class="header-right">
-    <span>MEM: 1024KB OK</span>
+    <span class="user-info" title={$currentUser?.email || ''}>
+      <span class="user-icon">[U]</span>
+      {userName.toUpperCase()}
+    </span>
+    <button class="logout-btn" on:click={handleLogout} title="Logout">
+      [EXIT]
+    </button>
+    <span class="separator">|</span>
     <span>{dateStr}</span>
     <span>{time}</span>
   </div>
@@ -109,10 +126,44 @@
   .header-right {
     display: flex;
     align-items: center;
-    gap: 24px;
+    gap: 16px;
     padding-right: 16px;
     font-size: 10px;
     letter-spacing: 0.05em;
+  }
+
+  .user-info {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: #00ff00;
+    font-weight: bold;
+  }
+
+  .user-icon {
     opacity: 0.7;
+  }
+
+  .logout-btn {
+    background: transparent;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    color: rgba(255, 255, 255, 0.7);
+    font-family: inherit;
+    font-size: 9px;
+    font-weight: bold;
+    letter-spacing: 0.1em;
+    padding: 4px 8px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .logout-btn:hover {
+    border-color: #ff4444;
+    color: #ff4444;
+    background: rgba(255, 68, 68, 0.1);
+  }
+
+  .separator {
+    opacity: 0.3;
   }
 </style>

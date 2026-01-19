@@ -46,7 +46,8 @@
   async function loadEntries() {
     const year = currentMonth.getFullYear();
     const month = currentMonth.getMonth();
-    const userId = get(currentUser);
+    const user = get(currentUser);
+    const userId = user?.id || 'anon';
     const cacheKey = `${userId}-${year}-${String(month + 1).padStart(2, '0')}`;
 
     // Check cache first (use get() for synchronous access)
@@ -63,7 +64,7 @@
       const startDate = `${year}-${String(month + 1).padStart(2, '0')}-01`;
       const endDate = `${year}-${String(month + 1).padStart(2, '0')}-31`;
 
-      const data = await getEntries(userId, startDate, endDate);
+      const data = await getEntries(startDate, endDate);
       entries = {};
       data.forEach(e => {
         entries[e.date] = e;

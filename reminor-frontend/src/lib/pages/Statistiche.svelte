@@ -1,7 +1,7 @@
 <script>
   import { onMount } from 'svelte';
   import { currentUser } from '../stores.js';
-  import { getStats } from '../api.js';
+  import { getStats, triggerKnowledgeAnalysis } from '../api.js';
 
   let isLoading = true;
   let stats = {
@@ -12,78 +12,130 @@
     totalEntries: 0
   };
 
-  // Heatmap data (90 days)
-  let heatmapData = [];
+  // Density Map (Last 90 days)
+  let densityMap = [];
+  
+  // System Profile
+  let aiSummary = "";
 
-  // Bar chart data (14 days)
-  let barChartData = [];
-
-  // Radar chart data (emotions)
-  let emotionData = {
-    felice: 0,
-    sereno: 0,
-    motivato: 0,
-    grato: 0,
-    ansioso: 0,
-    stressato: 0
-  };
-  let dominantEmotion = '-';
-
-  // System log (recent activity)
-  let systemLog = [];
-
-  // Tooltip state
-  let tooltip = { visible: false, x: 0, y: 0, text: '' };
+  // Visual Stats
+  let writingTrend = 0;
+  let isPositiveTrend = true;
+  let dominantMood = "N/D";
+  let dominantPercentage = 0;
+  let moodDistribution = [];
 
   async function loadStats() {
     isLoading = true;
     try {
-      const data = await getStats($currentUser);
+      const data = await getStats();
       if (data && data.stats) {
         stats.streak = data.stats.current_streak || 0;
         stats.longestStreak = data.stats.longest_streak || 0;
         stats.totalWords = data.stats.total_words || 0;
-        stats.avgWords = data.stats.average_words || 0;
+        stats.avgWords = Math.round(data.stats.average_words || 0);
         stats.totalEntries = data.stats.total_entries || 0;
-
-        // Process heatmap data (90 days)
-        if (data.stats.daily_words) {
-          const sortedDates = Object.keys(data.stats.daily_words).sort();
-          heatmapData = sortedDates.map(date => ({
-            date,
-            words: data.stats.daily_words[date] || 0
-          }));
-        }
-
-        // Process bar chart data (14 days)
-        if (data.stats.recent_daily_words) {
-          barChartData = data.stats.recent_daily_words;
-        }
-
-        // Process emotion data
-        if (data.stats.emotion_averages) {
-          const ea = data.stats.emotion_averages;
-          emotionData = {
-            felice: ea.felice || 0,
-            sereno: ea.sereno || 0,
-            motivato: ea.motivato || 0,
-            grato: ea.grato || 0,
-            ansioso: ea.ansioso || 0,
-            stressato: ea.stressato || 0
-          };
-
-          // Find dominant emotion
-          let maxVal = 0;
-          for (const [key, val] of Object.entries(emotionData)) {
-            if (val > maxVal) {
-              maxVal = val;
-              dominantEmotion = key.charAt(0).toUpperCase() + key.slice(1);
+        
+        // 0. AI Summary (System Profile)
+        // Check if ai_summary exists in stats (from user_knowledge.json via backend)
+        // The backend structure for 'stats' endpoint returns { stats: ..., ai_summary: ... }
+        if (data.ai_summary) {
+            aiSummary = data.ai_summary;
+        } else {
+            // Trigger analysis if not available
+            aiSummary = "ANALISI SISTEMA NON DISPONIBILE. ELABORAZIONE IN CORSO...";
+            try {
+                // Trigger background analysis silently
+                // We don't await this to keep UI responsive
+                triggerKnowledgeAnalysis().then(() => {
+                    // Optional: reload stats after a delay?
+                    // For now just let it run for next time.
+                    console.log("Analysis triggered.");
+                }).catch(err => console.error("Analysis trigger failed", err));
+            } catch (e) {
+                console.error("Failed to trigger analysis", e);
             }
-          }
         }
 
-        // Generate system log from recent activity
-        systemLog = generateSystemLog(data.stats);
+        // 1. Process Density Map (Last ~12 weeks/84 days for a clean grid)
+        // We need 12 columns of 7 days = 84 blocks
+        const densityDays = 84; 
+        const today = new Date();
+        densityMap = Array(densityDays).fill(0).map((_, i) => {
+          // Calculate date going backwards from today (but we want today at the end)
+          // The grid fills column by column (top-down). 
+          // 84 blocks: 
+          // Col 1: Day -83 to -77
+          // ...
+          // Col 12: Day -6 to Today
+          
+          // Actually, let's just make a linear list of days from oldest to newest
+          // The CSS grid-auto-flow: column will fill top-to-bottom, left-to-right.
+          // So index 0 is Top-Left (oldest), index 6 is Bottom-Left.
+          // index 7 is Top-SecondColumn, etc.
+          // So we need to order dates such that the visual result is correct.
+          // Visual result standard: Left->Right are weeks. Top->Bottom are days (Mon->Sun).
+          
+          // Let's stick to a simpler row-based approach or just standard flex wrap if grid is too hard to calc perfectly without library.
+          // BUT, to fix the "overflow" issue, the grid needs to fit the container.
+          // 84 blocks might be too many for the width/height of the card.
+          // Let's reduce to 10 weeks (70 days) to be safe or adjust CSS gap/size.
+          
+          const d = new Date(today);
+          d.setDate(d.getDate() - (densityDays - 1 - i));
+          
+          const dateStr = d.toISOString().split('T')[0];
+          const wordCount = data.stats.daily_words ? (data.stats.daily_words[dateStr] || 0) : 0;
+          
+          // Determine intensity 0-4
+          let intensity = 0;
+          if (wordCount > 0) intensity = 1;
+          if (wordCount > 100) intensity = 2;
+          if (wordCount > 300) intensity = 3;
+          if (wordCount > 600) intensity = 4;
+
+          return {
+            date: dateStr,
+            count: wordCount,
+            intensity: intensity
+          };
+        });
+
+        // 2. Calculate Writing Trend
+        // Now fetched from backend
+        if (data.stats.writing_trend !== undefined) {
+          writingTrend = Math.abs(data.stats.writing_trend);
+          isPositiveTrend = data.stats.writing_trend >= 0;
+        } else {
+           // Fallback if backend doesn't return it yet
+           writingTrend = 0;
+           isPositiveTrend = true;
+        }
+
+        // 3. Process Mood Distribution
+        if (data.stats.emotion_averages) {
+          const em = data.stats.emotion_averages;
+          // Map to array for bar chart
+          const rawMoods = [
+            { label: 'FELICE', value: em.felice || 0 },
+            { label: 'SERENO', value: em.sereno || 0 },
+            { label: 'MOTIVATO', value: em.motivato || 0 },
+            { label: 'GRATO', value: em.grato || 0 },
+            { label: 'ANSIOSO', value: em.ansioso || 0 },
+            { label: 'STRESS', value: em.stressato || 0 }
+          ];
+          
+          // Sort by value to find dominant
+          rawMoods.sort((a, b) => b.value - a.value);
+          
+          if (rawMoods[0].value > 0) {
+            dominantMood = rawMoods[0].label;
+            dominantPercentage = Math.round(rawMoods[0].value * 100);
+          }
+
+          // Take top 6 for chart
+          moodDistribution = rawMoods.slice(0, 6);
+        }
       }
     } catch (e) {
       console.error('Failed to load stats:', e);
@@ -92,156 +144,8 @@
     }
   }
 
-  // Heatmap helper functions
-  function getHeatmapColor(words) {
-    if (words === 0) return 'rgba(255,255,255,0.08)';
-    if (words < 100) return 'rgba(255,255,255,0.25)';
-    if (words < 300) return 'rgba(255,255,255,0.5)';
-    if (words < 500) return 'rgba(255,255,255,0.75)';
-    return 'rgba(255,255,255,1)';
-  }
-
-  function formatDate(dateStr) {
-    const d = new Date(dateStr);
-    return d.toLocaleDateString('it-IT', { day: '2-digit', month: 'short' });
-  }
-
-  function formatLogTime(dateStr) {
-    const d = new Date(dateStr);
-    const now = new Date();
-    const diffDays = Math.floor((now - d) / (1000 * 60 * 60 * 24));
-
-    if (diffDays === 0) return 'OGGI';
-    if (diffDays === 1) return 'IERI';
-    if (diffDays < 7) return `${diffDays}GG FA`;
-    return d.toLocaleDateString('it-IT', { day: '2-digit', month: 'short' });
-  }
-
-  function generateSystemLog(statsData) {
-    const logs = [];
-    const now = new Date();
-
-    // Last entry saved
-    if (statsData.last_entry) {
-      const lastWords = statsData.recent_daily_words?.find(d => d.date === statsData.last_entry)?.words || 0;
-      logs.push({
-        time: formatLogTime(statsData.last_entry),
-        action: 'ENTRY.SAVED',
-        detail: `${lastWords} parole`
-      });
-    }
-
-    // Streak milestone
-    if (statsData.current_streak >= 7) {
-      logs.push({
-        time: 'OGGI',
-        action: 'STREAK.MILESTONE',
-        detail: `${statsData.current_streak}d attivi`
-      });
-    }
-
-    // Find most productive day in last 14
-    if (statsData.recent_daily_words?.length > 0) {
-      const maxDay = statsData.recent_daily_words.reduce((max, d) =>
-        d.words > (max?.words || 0) ? d : max, null);
-      if (maxDay && maxDay.words > 0) {
-        logs.push({
-          time: formatLogTime(maxDay.date),
-          action: 'PEAK.OUTPUT',
-          detail: `${maxDay.words} parole`
-        });
-      }
-    }
-
-    // First entry info
-    if (statsData.first_entry) {
-      logs.push({
-        time: formatLogTime(statsData.first_entry),
-        action: 'SYSTEM.INIT',
-        detail: 'Prima entry'
-      });
-    }
-
-    // Add total stats summary
-    logs.push({
-      time: 'TOTALE',
-      action: 'DATA.INDEXED',
-      detail: `${statsData.total_entries} entries`
-    });
-
-    return logs.slice(0, 6); // Max 6 entries
-  }
-
-  // Bar chart calculations
-  $: maxBarWords = Math.max(...barChartData.map(d => d.words), 1);
-  $: avgBarWords = barChartData.length > 0
-    ? barChartData.reduce((sum, d) => sum + d.words, 0) / barChartData.length
-    : 0;
-
-  // Radar chart calculations (hexagonal)
-  const radarLabels = ['Felice', 'Sereno', 'Motivato', 'Grato', 'Ansioso', 'Stressato'];
-  const radarKeys = ['felice', 'sereno', 'motivato', 'grato', 'ansioso', 'stressato'];
-
-  function polarToCart(angle, radius, cx, cy) {
-    const rad = (angle - 90) * (Math.PI / 180);
-    return {
-      x: cx + radius * Math.cos(rad),
-      y: cy + radius * Math.sin(rad)
-    };
-  }
-
-  $: radarPoints = (() => {
-    const cx = 90, cy = 80, maxR = 60;
-    const points = [];
-    radarKeys.forEach((key, i) => {
-      const angle = (360 / 6) * i;
-      const value = emotionData[key] || 0;
-      const r = value * maxR;
-      const pt = polarToCart(angle, r, cx, cy);
-      points.push(`${pt.x},${pt.y}`);
-    });
-    return points.join(' ');
-  })();
-
-  // Radar points for larger chart
-  $: radarPointsLarge = (() => {
-    const cx = 110, cy = 95, maxR = 55;
-    const points = [];
-    radarKeys.forEach((key, i) => {
-      const angle = (360 / 6) * i;
-      const value = emotionData[key] || 0;
-      const r = value * maxR;
-      const pt = polarToCart(angle, r, cx, cy);
-      points.push(`${pt.x},${pt.y}`);
-    });
-    return points.join(' ');
-  })();
-
-  // Generate radar grid lines
-  function getRadarGrid(level, cx = 90, cy = 80, maxR = 60) {
-    const r = (level / 5) * maxR;
-    const points = [];
-    for (let i = 0; i < 6; i++) {
-      const angle = (360 / 6) * i;
-      const pt = polarToCart(angle, r, cx, cy);
-      points.push(`${pt.x},${pt.y}`);
-    }
-    return points.join(' ');
-  }
-
-  // Tooltip handlers
-  function showTooltip(e, text) {
-    const rect = e.target.getBoundingClientRect();
-    tooltip = {
-      visible: true,
-      x: rect.left + rect.width / 2,
-      y: rect.top - 8,
-      text
-    };
-  }
-
-  function hideTooltip() {
-    tooltip.visible = false;
+  function formatNumber(num) {
+    return num.toLocaleString('it-IT');
   }
 
   onMount(() => {
@@ -250,840 +154,456 @@
 </script>
 
 <div class="stats-page">
-  <!-- Scanlines overlay -->
-  <div class="scanlines"></div>
-
-  <main class="stats-container">
-    <div class="page-title glitch" data-text="--- STATS TERMINAL ---">
-      --- STATS TERMINAL ---
+  <div class="page-header">
+    <div class="header-content">
+      <div class="header-line">--- STATISTICHE PERSONALI ---</div>
+      <div class="header-sub">SISTEMA OPERATIVO DIARIO DI BORDO // USER: ADMIN</div>
     </div>
+  </div>
 
-    <div class="stats-grid">
-      <!-- 0x01: COERENZA (Heatmap) -->
-      <div class="stat-card">
-        <div class="corner-tl"></div>
-        <div class="corner-tr"></div>
-        <div class="corner-bl"></div>
-        <div class="corner-br"></div>
-
-        <div class="card-header">
-          <div class="header-left">
-            <span class="material-symbols-outlined">local_fire_department</span>
-            <span class="card-label glitch-text">COERENZA</span>
-          </div>
-          <span class="card-id">0x01</span>
+  <div class="stats-grid">
+    
+    <!-- CARD 1: DENSITÀ MEMORIA -->
+    <div class="stat-card">
+      <div class="card-top">
+        <div class="card-icon-title">
+          <span class="pixel-icon">grid_view</span>
+          <span class="card-title">DENSITÀ MEMORIA</span>
         </div>
+        <span class="card-id">0x01</span>
+      </div>
 
-        <div class="coerenza-content">
-          <div class="streak-header">
-            <div class="streak-display">
-              <span class="streak-num">{stats.streak}</span>
-              <span class="streak-label">GIORNI</span>
-            </div>
-            <div class="streak-meta">
-              <div class="streak-badge-outline">STREAK ATTIVA</div>
-              <div class="streak-record">REC: {stats.longestStreak}d</div>
-            </div>
-          </div>
+      <div class="card-main">
+        <div class="density-grid">
+          {#each densityMap as block}
+            <div class="density-block intensity-{block.intensity}" title="{block.date}: {block.count} words"></div>
+          {/each}
+        </div>
+      </div>
 
-          <!-- GitHub-style Heatmap (larger, centered) -->
-          <div class="heatmap-container">
-            <div class="heatmap-grid">
-              {#each Array(7) as _, row}
-                <div class="heatmap-row">
-                  {#each Array(13) as _, col}
-                    {@const idx = col * 7 + row}
-                    {@const item = heatmapData[idx]}
-                    {#if item}
-                      <div
-                        class="heatmap-cell"
-                        style="background: {getHeatmapColor(item.words)}"
-                        on:mouseenter={(e) => showTooltip(e, `${formatDate(item.date)}: ${item.words} parole`)}
-                        on:mouseleave={hideTooltip}
-                        role="gridcell"
-                        tabindex="-1"
-                      ></div>
-                    {:else}
-                      <div class="heatmap-cell empty"></div>
-                    {/if}
-                  {/each}
+      <div class="card-bottom">
+        <div class="row-between">
+            <div class="bottom-label">ULTIMI 84 GIORNI</div>
+            <div class="density-legend">
+                <span>MENO</span>
+                <div class="legend-scale">
+                    <div class="density-block intensity-0"></div>
+                    <div class="density-block intensity-2"></div>
+                    <div class="density-block intensity-4"></div>
                 </div>
-              {/each}
+                <span>PIÙ</span>
             </div>
-            <div class="heatmap-legend">
-              <span class="legend-label">MENO</span>
-              <div class="legend-cell" style="background: rgba(255,255,255,0.08)"></div>
-              <div class="legend-cell" style="background: rgba(255,255,255,0.25)"></div>
-              <div class="legend-cell" style="background: rgba(255,255,255,0.5)"></div>
-              <div class="legend-cell" style="background: rgba(255,255,255,0.75)"></div>
-              <div class="legend-cell" style="background: rgba(255,255,255,1)"></div>
-              <span class="legend-label">PIU</span>
-            </div>
-          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- CARD 2: SCRITTURA -->
+    <div class="stat-card">
+      <div class="card-top">
+        <div class="card-icon-title">
+          <span class="pixel-icon">edit</span>
+          <span class="card-title">SCRITTURA</span>
+        </div>
+        <span class="card-id">0x02</span>
+      </div>
+
+      <div class="card-main">
+        <div class="mid-label">VOLUME TOTALE</div>
+        <div class="big-number-row">
+          <span class="giant-number">{formatNumber(stats.totalWords)}</span>
+          <span class="unit">WORDS</span>
         </div>
       </div>
 
-      <!-- 0x02: SCRITTURA (Bar Chart) -->
-      <div class="stat-card">
-        <div class="corner-tl"></div>
-        <div class="corner-tr"></div>
-        <div class="corner-bl"></div>
-        <div class="corner-br"></div>
-
-        <div class="card-header">
-          <div class="header-left">
-            <span class="material-symbols-outlined">edit_note</span>
-            <span class="card-label glitch-text">SCRITTURA</span>
-          </div>
-          <span class="card-id">0x02</span>
+      <div class="card-bottom row-between">
+        <div class="metric-col">
+          <div class="bottom-label">MEDIA GIORNALIERA</div>
+          <div class="metric-value">+{formatNumber(stats.avgWords)} <span class="dim">AVG</span></div>
         </div>
-
-        <div class="scrittura-content">
-          <div class="words-display">
-            <span class="words-num">{stats.totalWords.toLocaleString()}</span>
-            <span class="words-label">PAROLE TOTALI</span>
-          </div>
-          <div class="words-meta">
-            <div class="meta-item">
-              <span class="meta-label">MEDIA/GG</span>
-              <span class="meta-value">{stats.avgWords}</span>
-            </div>
-            <div class="meta-item">
-              <span class="meta-label">ENTRIES</span>
-              <span class="meta-value">{stats.totalEntries}</span>
-            </div>
-          </div>
-
-          <!-- SVG Bar Chart -->
-          <div class="barchart-container">
-            <svg viewBox="0 0 280 100" class="barchart-svg">
-              <!-- Average line -->
-              {#if avgBarWords > 0}
-                <line
-                  x1="0"
-                  y1={85 - (avgBarWords / maxBarWords) * 70}
-                  x2="280"
-                  y2={85 - (avgBarWords / maxBarWords) * 70}
-                  stroke="rgba(255,255,255,0.3)"
-                  stroke-dasharray="4,4"
-                  stroke-width="1"
-                />
-                <text
-                  x="275"
-                  y={82 - (avgBarWords / maxBarWords) * 70}
-                  fill="rgba(255,255,255,0.4)"
-                  font-size="6"
-                  text-anchor="end"
-                >AVG</text>
-              {/if}
-
-              <!-- Bars -->
-              {#each barChartData as day, i}
-                {@const barHeight = maxBarWords > 0 ? (day.words / maxBarWords) * 70 : 0}
-                {@const barX = i * 20 + 2}
-                <rect
-                  x={barX}
-                  y={85 - barHeight}
-                  width="16"
-                  height={barHeight}
-                  fill={day.words >= avgBarWords ? 'rgba(255,255,255,0.9)' : 'rgba(255,255,255,0.4)'}
-                  on:mouseenter={(e) => showTooltip(e, `${formatDate(day.date)}: ${day.words} parole`)}
-                  on:mouseleave={hideTooltip}
-                  role="graphics-symbol"
-                  tabindex="-1"
-                />
-              {/each}
-
-              <!-- X axis -->
-              <line x1="0" y1="86" x2="280" y2="86" stroke="rgba(255,255,255,0.2)" stroke-width="1"/>
-            </svg>
-            <div class="barchart-labels">
-              <span>14 GG FA</span>
-              <span>OGGI</span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- 0x03: MOOD (Radar Chart) -->
-      <div class="stat-card">
-        <div class="corner-tl"></div>
-        <div class="corner-tr"></div>
-        <div class="corner-bl"></div>
-        <div class="corner-br"></div>
-
-        <div class="card-header">
-          <div class="header-left">
-            <span class="material-symbols-outlined">mood</span>
-            <span class="card-label glitch-text">MOOD</span>
-          </div>
-          <span class="card-id">0x03</span>
-        </div>
-
-        <div class="mood-content">
-          <!-- SVG Radar Chart (full size) -->
-          <div class="radar-container">
-            <svg viewBox="0 0 220 200" class="radar-svg">
-              <!-- Grid levels -->
-              {#each [1, 2, 3, 4, 5] as level}
-                <polygon
-                  points={getRadarGrid(level, 110, 95, 55)}
-                  fill="none"
-                  stroke="rgba(255,255,255,{0.08 + level * 0.02})"
-                  stroke-width="0.5"
-                />
-              {/each}
-
-              <!-- Axis lines -->
-              {#each radarLabels as _, i}
-                {@const angle = (360 / 6) * i}
-                {@const endPt = polarToCart(angle, 55, 110, 95)}
-                <line
-                  x1="110" y1="95"
-                  x2={endPt.x} y2={endPt.y}
-                  stroke="rgba(255,255,255,0.12)"
-                  stroke-width="0.5"
-                />
-              {/each}
-
-              <!-- Data polygon -->
-              <polygon
-                points={radarPointsLarge}
-                fill="rgba(255,255,255,0.12)"
-                stroke="rgba(255,255,255,0.8)"
-                stroke-width="1.5"
-              />
-
-              <!-- Data points -->
-              {#each radarKeys as key, i}
-                {@const angle = (360 / 6) * i}
-                {@const value = emotionData[key] || 0}
-                {@const pt = polarToCart(angle, value * 55, 110, 95)}
-                <circle cx={pt.x} cy={pt.y} r="2.5" fill="white"/>
-              {/each}
-
-              <!-- Labels (full names) -->
-              {#each radarLabels as label, i}
-                {@const angle = (360 / 6) * i}
-                {@const labelPt = polarToCart(angle, 75, 110, 95)}
-                <text
-                  x={labelPt.x}
-                  y={labelPt.y}
-                  fill="rgba(255,255,255,0.6)"
-                  font-size="9"
-                  text-anchor="middle"
-                  dominant-baseline="middle"
-                  font-family="JetBrains Mono, monospace"
-                >{label.toUpperCase()}</text>
-              {/each}
-
-              <!-- Center label with background -->
-              <rect x="80" y="87" width="60" height="16" fill="rgba(0,0,0,0.8)" rx="2"/>
-              <text
-                x="110" y="95"
-                fill="white"
-                font-size="9"
-                text-anchor="middle"
-                dominant-baseline="middle"
-                font-weight="bold"
-                font-family="JetBrains Mono, monospace"
-              >{dominantEmotion.toUpperCase()}</text>
-            </svg>
-          </div>
-        </div>
-      </div>
-
-      <!-- 0x04: SYSTEM LOG -->
-      <div class="stat-card">
-        <div class="corner-tl"></div>
-        <div class="corner-tr"></div>
-        <div class="corner-bl"></div>
-        <div class="corner-br"></div>
-
-        <div class="card-header">
-          <div class="header-left">
-            <span class="material-symbols-outlined">terminal</span>
-            <span class="card-label glitch-text">SYSTEM.LOG</span>
-          </div>
-          <span class="card-id">0x04</span>
-        </div>
-
-        <div class="analisi-content">
-          <div class="terminal-output">
-            <div class="terminal-line header-line">
-              <span class="terminal-prompt">&gt;</span>
-              <span class="terminal-cmd">tail -f /var/log/reminor.log</span>
-            </div>
-            {#each systemLog as log, i}
-              <div class="log-entry" style="animation-delay: {i * 0.1}s">
-                <span class="log-time">[{log.time}]</span>
-                <span class="log-action">{log.action}</span>
-                <span class="log-detail">{log.detail}</span>
-              </div>
-            {/each}
-            {#if systemLog.length === 0}
-              <div class="log-entry empty">
-                <span class="log-detail">Nessuna attività recente...</span>
-              </div>
-            {/if}
-            <div class="terminal-line">
-              <span class="terminal-prompt">&gt;</span>
-              <span class="terminal-cursor">_</span>
-            </div>
+        <div class="metric-col right">
+          <div class="bottom-label">TREND</div>
+          <div class="metric-value {isPositiveTrend ? 'green' : 'red'}">
+            {isPositiveTrend ? '▲' : '▼'} {writingTrend}%
           </div>
         </div>
       </div>
     </div>
-  </main>
 
-  <!-- Tooltip -->
-  {#if tooltip.visible}
-    <div
-      class="tooltip"
-      style="left: {tooltip.x}px; top: {tooltip.y}px;"
-    >
-      {tooltip.text}
+    <!-- CARD 3: MOOD PREVALENTE -->
+    <div class="stat-card">
+      <div class="card-top">
+        <div class="card-icon-title">
+          <span class="pixel-icon">sentiment_satisfied</span>
+          <span class="card-title">MOOD PREVALENTE</span>
+        </div>
+        <span class="card-id">0x03</span>
+      </div>
+
+      <div class="card-main">
+        <div class="giant-text">{dominantMood}</div>
+        <div class="sub-text">RILEVATO NEL {dominantPercentage}% DEI TESTI</div>
+      </div>
+
+      <div class="card-bottom no-pad">
+        <div class="mood-bars">
+          {#each moodDistribution as mood}
+            <div class="mood-bar-container">
+              <div class="mood-bar" style="height: {mood.value * 100}%"></div>
+            </div>
+          {/each}
+        </div>
+      </div>
     </div>
-  {/if}
+
+    <!-- CARD 4: PROFILO SISTEMA -->
+    <div class="stat-card">
+      <div class="card-top">
+        <div class="card-icon-title">
+          <span class="pixel-icon">terminal</span>
+          <span class="card-title">PROFILO SISTEMA</span>
+        </div>
+        <span class="card-id">0x04</span>
+      </div>
+
+      <div class="card-terminal">
+        <div class="terminal-content">
+          > SYSTEM_ANALYSIS_INIT<br>
+          > READING_USER_PATTERN...<br>
+          <br>
+          <span class="terminal-text">{aiSummary}</span>
+          <span class="cursor">_</span>
+        </div>
+      </div>
+    </div>
+
+  </div>
 </div>
 
 <style>
+  :global(body) {
+    background-color: #050505;
+  }
+
   .stats-page {
     flex: 1;
     display: flex;
     flex-direction: column;
-    min-height: 0;
-    position: relative;
-    overflow: hidden;
-  }
-
-  /* Scanlines overlay */
-  .scanlines {
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: repeating-linear-gradient(
-      0deg,
-      rgba(0, 0, 0, 0) 0px,
-      rgba(0, 0, 0, 0) 1px,
-      rgba(0, 0, 0, 0.03) 1px,
-      rgba(0, 0, 0, 0.03) 2px
-    );
-    pointer-events: none;
-    z-index: 100;
-  }
-
-  .stats-container {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    padding: 12px 24px;
-    max-width: 1200px;
-    margin: 0 auto;
-    width: 100%;
-    min-height: 0;
-  }
-
-  .page-title {
-    text-align: center;
-    font-size: 14px;
-    font-weight: bold;
-    letter-spacing: 0.25em;
-    margin-bottom: 12px;
-    flex-shrink: 0;
+    padding: 20px 40px;
+    height: 100vh;
+    box-sizing: border-box;
     font-family: 'JetBrains Mono', monospace;
+    background-color: #050505;
+    color: #e0e0e0;
   }
 
-  /* Glitch effect */
-  .glitch {
-    position: relative;
-    animation: glitch-skew 4s infinite linear alternate-reverse;
+  /* Header */
+  .page-header {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 40px;
+    margin-top: 10px;
   }
 
-  .glitch::before,
-  .glitch::after {
-    content: attr(data-text);
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
+  .header-content {
+    text-align: center;
   }
 
-  .glitch::before {
-    left: 2px;
-    text-shadow: -2px 0 rgba(255, 255, 255, 0.3);
-    clip: rect(24px, 550px, 90px, 0);
-    animation: glitch-anim 3s infinite linear alternate-reverse;
+  .header-line {
+    font-size: 18px;
+    font-weight: bold;
+    letter-spacing: 0.2em;
+    margin-bottom: 8px;
+    color: #fff;
   }
 
-  .glitch::after {
-    left: -2px;
-    text-shadow: 2px 0 rgba(255, 255, 255, 0.3);
-    clip: rect(85px, 550px, 140px, 0);
-    animation: glitch-anim2 2s infinite linear alternate-reverse;
+  .header-sub {
+    font-size: 10px;
+    color: #666;
+    letter-spacing: 0.1em;
   }
 
-  @keyframes glitch-anim {
-    0% { clip: rect(51px, 9999px, 28px, 0); }
-    5% { clip: rect(70px, 9999px, 19px, 0); }
-    10% { clip: rect(12px, 9999px, 45px, 0); }
-    15% { clip: rect(0, 0, 0, 0); }
-    100% { clip: rect(0, 0, 0, 0); }
-  }
-
-  @keyframes glitch-anim2 {
-    0% { clip: rect(65px, 9999px, 3px, 0); }
-    5% { clip: rect(22px, 9999px, 57px, 0); }
-    10% { clip: rect(0, 0, 0, 0); }
-    100% { clip: rect(0, 0, 0, 0); }
-  }
-
-  @keyframes glitch-skew {
-    0% { transform: skew(0deg); }
-    2% { transform: skew(0.5deg); }
-    4% { transform: skew(0deg); }
-    100% { transform: skew(0deg); }
-  }
-
-  .glitch-text {
-    animation: glitch-text-flicker 5s infinite;
-  }
-
-  @keyframes glitch-text-flicker {
-    0%, 90%, 100% { opacity: 1; }
-    91% { opacity: 0.8; }
-    92% { opacity: 1; }
-    93% { opacity: 0.9; }
-    94% { opacity: 1; }
-  }
-
+  /* Grid Layout */
   .stats-grid {
-    flex: 1;
     display: grid;
     grid-template-columns: 1fr 1fr;
     grid-template-rows: 1fr 1fr;
-    gap: 12px;
-    min-height: 0;
+    gap: 20px;
+    flex: 1;
+    min-height: 0; /* Important for scrolling if needed */
   }
 
+  /* Card Base */
   .stat-card {
+    background: #0a0a0a;
+    border: 1px solid #333;
+    padding: 24px;
     display: flex;
     flex-direction: column;
-    padding: 12px 14px;
-    background: rgba(255, 255, 255, 0.02);
-    border: 1px solid rgba(255, 255, 255, 0.3);
     position: relative;
-    overflow: hidden;
   }
 
-  /* Corner markers */
-  .corner-tl, .corner-tr, .corner-bl, .corner-br {
-    position: absolute;
-    width: 8px;
-    height: 8px;
-    border-color: white;
-    border-style: solid;
-    border-width: 0;
-  }
-
-  .corner-tl {
-    top: -1px;
-    left: -1px;
-    border-top-width: 2px;
-    border-left-width: 2px;
-  }
-
-  .corner-tr {
-    top: -1px;
-    right: -1px;
-    border-top-width: 2px;
-    border-right-width: 2px;
-  }
-
-  .corner-bl {
-    bottom: -1px;
-    left: -1px;
-    border-bottom-width: 2px;
-    border-left-width: 2px;
-  }
-
-  .corner-br {
-    bottom: -1px;
-    right: -1px;
-    border-bottom-width: 2px;
-    border-right-width: 2px;
-  }
-
-  .card-header {
+  /* Card Top */
+  .card-top {
     display: flex;
     justify-content: space-between;
-    align-items: center;
-    margin-bottom: 8px;
-    flex-shrink: 0;
+    align-items: flex-start;
+    margin-bottom: 20px;
   }
 
-  .header-left {
+  .card-icon-title {
     display: flex;
     align-items: center;
-    gap: 6px;
+    gap: 10px;
   }
 
-  .card-label {
-    font-size: 9px;
+  .pixel-icon {
+    font-family: 'Material Symbols Outlined';
+    font-size: 18px;
+    opacity: 0.7;
+    /* Dotted texture simulation if possible, else solid */
+  }
+
+  .card-title {
+    font-size: 12px;
     font-weight: bold;
-    letter-spacing: 0.15em;
-    font-family: 'JetBrains Mono', monospace;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    border-bottom: 1px dotted #666;
+    padding-bottom: 2px;
   }
 
   .card-id {
-    font-size: 8px;
-    color: rgba(255, 255, 255, 0.3);
-    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: #444;
   }
 
-  .material-symbols-outlined {
-    font-family: 'Material Symbols Outlined';
-    font-size: 16px;
-    font-variation-settings: 'FILL' 1, 'wght' 400;
-  }
-
-  /* 0x01 COERENZA */
-  .coerenza-content {
+  /* Card Main Content */
+  .card-main {
     flex: 1;
     display: flex;
     flex-direction: column;
-    min-height: 0;
+    justify-content: center;
   }
 
-  .streak-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    flex-shrink: 0;
+  .big-number {
+    font-size: 36px;
+    font-weight: bold;
+    color: #fff;
+    margin-bottom: 8px;
   }
 
-  .streak-display {
+  .streak-badge {
+    background: #ccc;
+    color: #000;
+    display: inline-block;
+    padding: 4px 8px;
+    font-size: 11px;
+    font-weight: bold;
+    width: fit-content;
+  }
+
+  .mid-label {
+    font-size: 10px;
+    color: #666;
+    text-transform: uppercase;
+    margin-bottom: 4px;
+  }
+
+  .big-number-row {
     display: flex;
     align-items: baseline;
-    gap: 4px;
+    gap: 12px;
   }
 
-  .streak-num {
-    font-size: 28px;
+  .giant-number {
+    font-size: 48px;
     font-weight: bold;
-    font-family: 'JetBrains Mono', monospace;
+    color: #fff;
     line-height: 1;
   }
 
-  .streak-label {
-    font-size: 9px;
-    opacity: 0.5;
+  .unit {
+    font-size: 14px;
+    color: #666;
+    font-weight: bold;
   }
 
-  .streak-meta {
+  .giant-text {
+    font-size: 42px;
+    font-weight: bold;
+    color: #fff;
+    line-height: 1;
+    margin-bottom: 8px;
+  }
+
+  .sub-text {
+    font-size: 10px;
+    color: #666;
+    text-transform: uppercase;
+  }
+
+  /* Card Bottom */
+  .card-bottom {
+    margin-top: auto;
+    padding-top: 20px;
+  }
+  
+  .card-bottom.no-pad {
+    padding-top: 0;
+    margin-bottom: -10px; /* Align bars to bottom edge visually */
+  }
+
+  .row-between {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+  }
+
+  .metric-col {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  
+  .metric-col.right {
+    text-align: right;
+  }
+
+  .bottom-label {
+    font-size: 9px;
+    color: #555;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+
+  .metric-value {
+    font-size: 16px;
+    font-weight: bold;
+    color: #fff;
+  }
+  
+  .metric-value.green { color: #fff; } /* Keeping monochromatic as per reference */
+  .metric-value .dim { font-size: 10px; color: #666; }
+
+  /* Density Grid (Memory) */
+  .density-grid {
+    display: grid;
+    /* Adjust grid to fit container better: 12 columns might be too wide with gap. 
+       Let's try flexible columns or reduce count. 
+       Actually, the issue is likely the fixed size blocks + gap overflowing.
+    */
+    grid-template-columns: repeat(12, 1fr);
+    grid-template-rows: repeat(7, 1fr);
+    grid-auto-flow: column;
+    gap: 3px; /* Reduced gap */
+    height: 100%;
+    width: 100%; /* Ensure grid fits width */
+    max-width: 100%; /* Prevent overflow */
+    overflow: hidden; /* Hide anything that spills out, though ideally shouldn't happen */
+    
+    /* Remove max-height constraint to let it fill available space in card-main */
+    /* max-height: 140px; */ 
+    align-content: center; /* Center vertically if space allows */
+    justify-content: center; /* Center horizontally */
+  }
+
+  .density-block {
+    background: #1a1a1a;
+    border-radius: 1px;
+    /* aspect-ratio: 1;  <-- This might cause overflow if width > height available */
+    width: 100%; /* Fill the grid cell */
+    height: 100%; /* Fill the grid cell */
+    /* Remove min-width/height to allow shrinking if necessary */
+    /* min-width: 10px; */
+    /* min-height: 10px; */
+  }
+
+  .density-block.intensity-0 { background: #1a1a1a; }
+  .density-block.intensity-1 { background: #333; }
+  .density-block.intensity-2 { background: #666; }
+  .density-block.intensity-3 { background: #999; }
+  .density-block.intensity-4 { background: #e0e0e0; }
+
+  .density-legend {
     display: flex;
     align-items: center;
     gap: 8px;
-  }
-
-  .streak-badge-outline {
-    display: inline-block;
-    border: 1px solid rgba(255, 255, 255, 0.4);
-    color: rgba(255, 255, 255, 0.6);
-    font-size: 7px;
-    font-weight: bold;
-    padding: 2px 5px;
-    font-family: 'JetBrains Mono', monospace;
-  }
-
-  .streak-record {
     font-size: 8px;
-    opacity: 0.4;
-    font-family: 'JetBrains Mono', monospace;
+    color: #666;
   }
 
-  .heatmap-container {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    align-items: center;
-    min-height: 0;
-    padding: 8px 0;
-  }
-
-  .heatmap-grid {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-  }
-
-  .heatmap-row {
+  .legend-scale {
     display: flex;
     gap: 2px;
   }
 
-  .heatmap-cell {
-    width: 16px;
-    height: 16px;
-    border-radius: 2px;
-    cursor: pointer;
-    transition: transform 0.1s;
+  .legend-scale .density-block {
+    width: 8px;
+    height: 8px;
   }
 
-  .heatmap-cell:hover {
-    transform: scale(1.2);
-  }
-
-  .heatmap-cell.empty {
-    background: rgba(255, 255, 255, 0.05);
-  }
-
-  .heatmap-legend {
-    display: flex;
-    align-items: center;
-    gap: 3px;
-    margin-top: 8px;
-    justify-content: center;
-    flex-shrink: 0;
-  }
-
-  .legend-label {
-    font-size: 6px;
-    opacity: 0.4;
+  /* Terminal Profile */
+  .card-terminal {
+    flex: 1;
+    background: #000;
+    border: 1px solid #1a1a1a;
+    padding: 12px;
     font-family: 'JetBrains Mono', monospace;
+    overflow: hidden;
+    position: relative;
   }
 
-  .legend-cell {
-    width: 10px;
-    height: 10px;
-    border-radius: 2px;
-  }
-
-  /* 0x02 SCRITTURA */
-  .scrittura-content {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    min-height: 0;
-  }
-
-  .words-display {
-    display: flex;
-    align-items: baseline;
-    gap: 6px;
-    flex-shrink: 0;
-  }
-
-  .words-num {
-    font-size: 26px;
-    font-weight: bold;
-    font-family: 'JetBrains Mono', monospace;
-    line-height: 1;
-  }
-
-  .words-label {
-    font-size: 9px;
-    opacity: 0.5;
-  }
-
-  .words-meta {
-    display: flex;
-    gap: 20px;
-    margin: 6px 0;
-    flex-shrink: 0;
-  }
-
-  .meta-item {
-    display: flex;
-    flex-direction: column;
-  }
-
-  .meta-label {
-    font-size: 7px;
-    opacity: 0.4;
-    font-family: 'JetBrains Mono', monospace;
-  }
-
-  .meta-value {
-    font-size: 14px;
-    font-weight: bold;
-    font-family: 'JetBrains Mono', monospace;
-  }
-
-  .barchart-container {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    justify-content: flex-end;
-    min-height: 0;
-  }
-
-  .barchart-svg {
-    width: 100%;
-    flex: 1;
-    min-height: 60px;
-  }
-
-  .barchart-svg rect {
-    cursor: pointer;
-    transition: opacity 0.2s;
-  }
-
-  .barchart-svg rect:hover {
-    opacity: 0.7;
-  }
-
-  .barchart-labels {
-    display: flex;
-    justify-content: space-between;
-    font-size: 6px;
-    opacity: 0.4;
-    margin-top: 4px;
-    font-family: 'JetBrains Mono', monospace;
-    flex-shrink: 0;
-  }
-
-  /* 0x03 MOOD */
-  .mood-content {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    min-height: 0;
-  }
-
-  .radar-container {
-    flex: 1;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 100%;
-    min-height: 0;
-  }
-
-  .radar-svg {
-    width: 100%;
-    height: 100%;
-    max-width: 100%;
-  }
-
-  /* 0x04 SYSTEM LOG */
-  .analisi-content {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    min-height: 0;
-  }
-
-  .terminal-output {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 9px;
-  }
-
-  .terminal-line {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    flex-shrink: 0;
-  }
-
-  .terminal-line.header-line {
-    margin-bottom: 6px;
-    padding-bottom: 4px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-  }
-
-  .terminal-prompt {
-    color: rgba(255, 255, 255, 0.5);
-  }
-
-  .terminal-cmd {
-    color: rgba(255, 255, 255, 0.4);
-    font-size: 8px;
-  }
-
-  .log-entry {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    padding: 3px 0;
-    animation: log-fade-in 0.3s ease-out forwards;
-    opacity: 0;
-  }
-
-  .log-entry.empty {
-    opacity: 0.4;
-    font-style: italic;
-  }
-
-  @keyframes log-fade-in {
-    from {
-      opacity: 0;
-      transform: translateX(-8px);
-    }
-    to {
-      opacity: 1;
-      transform: translateX(0);
-    }
-  }
-
-  .log-time {
-    color: rgba(255, 255, 255, 0.35);
-    font-size: 7px;
-    min-width: 50px;
-  }
-
-  .log-action {
-    color: white;
-    font-weight: bold;
-    font-size: 9px;
-  }
-
-  .log-detail {
-    color: rgba(255, 255, 255, 0.45);
-    font-size: 8px;
-    margin-left: auto;
-  }
-
-  .terminal-cursor {
-    animation: cursor-blink 1s infinite;
-  }
-
-  @keyframes cursor-blink {
-    0%, 50% { opacity: 1; }
-    51%, 100% { opacity: 0; }
-  }
-
-  /* Tooltip */
-  .tooltip {
-    position: fixed;
-    background: white;
-    color: black;
-    padding: 4px 8px;
+  .terminal-content {
     font-size: 10px;
-    font-family: 'JetBrains Mono', monospace;
-    pointer-events: none;
-    transform: translate(-50%, -100%);
-    z-index: 200;
-    white-space: nowrap;
+    line-height: 1.4;
+    color: #888;
   }
 
-  .tooltip::after {
-    content: '';
-    position: absolute;
-    top: 100%;
-    left: 50%;
-    transform: translateX(-50%);
-    border: 4px solid transparent;
-    border-top-color: white;
+  .terminal-text {
+    color: #ccc;
+    white-space: pre-wrap; /* Maintain formatting of summary */
   }
+
+  .cursor {
+    display: inline-block;
+    width: 6px;
+    height: 12px;
+    background: #ccc;
+    animation: blink 1s step-end infinite;
+    vertical-align: text-bottom;
+    margin-left: 2px;
+  }
+
+  @keyframes blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0; }
+  }
+
+  /* Mood Bars */
+  .mood-bars {
+    display: flex;
+    align-items: flex-end;
+    gap: 12px;
+    height: 60px;
+  }
+
+  .mood-bar-container {
+    flex: 1;
+    height: 100%;
+    display: flex;
+    align-items: flex-end;
+  }
+
+  .mood-bar {
+    width: 100%;
+    background: #333;
+    min-height: 2px;
+  }
+  
+  /* Make the first (dominant) bar white */
+  .mood-bar-container:first-child .mood-bar {
+    background: #e0e0e0;
+  }
+
+
 </style>

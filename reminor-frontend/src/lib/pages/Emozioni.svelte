@@ -114,13 +114,13 @@
     const startDate = weekDays.length > 0 ? weekDays[0].date : null;
 
     try {
-      const statsData = await getStats($currentUser);
+      const statsData = await getStats();
       if (statsData && statsData.stats) {
         stats.totalEntries = statsData.stats.total_entries || 0;
         stats.streak = statsData.stats.current_streak || 0;
       }
 
-      const emotionsData = await getWeeklyEmotions($currentUser, startDate);
+      const emotionsData = await getWeeklyEmotions(startDate);
       if (emotionsData && emotionsData.weekly_emotions) {
         let totalIntensity = 0;
         let emotionCounts = {};

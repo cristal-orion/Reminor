@@ -1,6 +1,8 @@
 <script>
   import { settings, currentUser } from '../stores.js';
-  import { importDiaryFiles, rebuildMemory, downloadBackupZip } from '../api.js';
+  import { importDiaryFiles, rebuildMemory, downloadBackupZip, triggerKnowledgeAnalysis } from '../api.js';
+  import { logout } from '../auth.js';
+
 
   // LLM Providers and Models (LiteLLM format: provider/model)
   const providers = [
@@ -55,9 +57,16 @@
   let isTesting = false;
   let testResult = null;
 
-  // Load saved config from localStorage
+  // Get storage key for current user
+  function getLLMStorageKey() {
+    const userId = $currentUser?.id || 'default';
+    return `reminor_llm_config_${userId}`;
+  }
+
+  // Load saved config from localStorage (user-specific)
   function loadLLMConfig() {
-    const saved = localStorage.getItem('reminor_llm_config');
+    const storageKey = getLLMStorageKey();
+    const saved = localStorage.getItem(storageKey);
     if (saved) {
       try {
         const config = JSON.parse(saved);
@@ -70,14 +79,15 @@
     }
   }
 
-  // Save config to localStorage
+  // Save config to localStorage (user-specific)
   function saveLLMConfig() {
+    const storageKey = getLLMStorageKey();
     const config = {
       provider: selectedProvider,
       model: selectedModel,
       apiKey: apiKey
     };
-    localStorage.setItem('reminor_llm_config', JSON.stringify(config));
+    localStorage.setItem(storageKey, JSON.stringify(config));
   }
 
   // Get models for selected provider
@@ -122,8 +132,10 @@
     testResult = null;
   }
 
-  // Initialize
-  loadLLMConfig();
+  // Reload config when user changes
+  $: if ($currentUser) {
+    loadLLMConfig();
+  }
 
   let settingsItems = [
     { id: 'theme', label: 'Tema', value: 'Notte', icon: 'dark_mode' },
@@ -239,7 +251,7 @@
     importResult = null;
 
     try {
-      const result = await importDiaryFiles($currentUser, selectedFiles);
+      const result = await importDiaryFiles(selectedFiles);
       importResult = result;
 
       if (result.imported > 0) {
@@ -265,7 +277,7 @@
     exportSuccess = false;
 
     try {
-      const blob = await downloadBackupZip($currentUser);
+      const blob = await downloadBackupZip();
 
       // Create download link
       const url = window.URL.createObjectURL(blob);
@@ -286,6 +298,40 @@
       isExporting = false;
     }
   }
+
+  // Maintenance state
+  let isRebuilding = false;
+  let isAnalyzing = false;
+
+  async function handleRebuild() {
+    if (isRebuilding) return;
+    if (!confirm('Sei sicuro di voler ricostruire la memoria? Questa operazione potrebbe richiedere del tempo.')) return;
+
+    isRebuilding = true;
+    try {
+      await rebuildMemory();
+      alert('Memoria ricostruita con successo!');
+    } catch (e) {
+      alert('Errore durante la ricostruzione: ' + e.message);
+    } finally {
+      isRebuilding = false;
+    }
+  }
+
+  async function handleAnalysis() {
+    if (isAnalyzing) return;
+    if (!confirm('Vuoi avviare l\'analisi della conoscenza?')) return;
+
+    isAnalyzing = true;
+    try {
+      await triggerKnowledgeAnalysis();
+      alert('Analisi avviata in background!');
+    } catch (e) {
+      alert('Errore durante l\'avvio dell\'analisi: ' + e.message);
+    } finally {
+      isAnalyzing = false;
+    }
+  }
 </script>
 
 <svelte:window on:keydown={handleKeydown} />
@@ -298,6 +344,11 @@
         <span class="icon">settings</span>
         <h1 class="title">IMPOSTAZIONI</h1>
       </div>
+      {#if $currentUser}
+        <div class="user-info">
+          <span class="user-email">{$currentUser.email}</span>
+        </div>
+      {/if}
     </div>
 
     <!-- Settings List (moved to top for better visibility) -->
@@ -325,113 +376,146 @@
       {/each}
     </div>
 
-    <!-- Import Section -->
-    <div class="import-section">
-      <div class="section-header">
-        <span class="section-icon">upload_file</span>
-        <span class="section-title">IMPORTA DIARIO</span>
-      </div>
+    <!-- Import/Export Wrapper -->
+    <div class="io-wrapper">
+      <!-- Import Section -->
+      <div class="import-section">
+        <div class="section-header">
+          <span class="section-icon">upload_file</span>
+          <span class="section-title">IMPORTA DIARIO</span>
+        </div>
 
-      <div
-        class="drop-zone"
-        class:dragging={isDragging}
-        on:dragenter={handleDragEnter}
-        on:dragover={handleDragOver}
-        on:dragleave={handleDragLeave}
-        on:drop={handleDrop}
-      >
-        {#if selectedFiles.length === 0}
-          <span class="drop-icon">folder_open</span>
-          <p class="drop-text">Trascina qui i tuoi file .txt</p>
-          <p class="drop-hint">oppure</p>
-          <label class="file-select-btn">
-            <input type="file" accept=".txt" multiple on:change={handleFileSelect} hidden />
-            SFOGLIA FILE
-          </label>
-          <p class="drop-formats">Formati: 2024-01-15.txt, 15-01-2024.txt</p>
-        {:else}
-          <div class="files-list">
-            {#each selectedFiles as file, index}
-              <div class="file-item">
-                <span class="file-icon">description</span>
-                <span class="file-name">{file.name}</span>
-                <button class="file-remove" on:click={() => removeFile(index)}>×</button>
-              </div>
-            {/each}
+        <div
+          class="drop-zone"
+          class:dragging={isDragging}
+          on:dragenter={handleDragEnter}
+          on:dragover={handleDragOver}
+          on:dragleave={handleDragLeave}
+          on:drop={handleDrop}
+        >
+          {#if selectedFiles.length === 0}
+            <span class="drop-icon">folder_open</span>
+            <p class="drop-text">Trascina qui i tuoi file .txt</p>
+            <p class="drop-hint">oppure</p>
+            <label class="file-select-btn">
+              <input type="file" accept=".txt" multiple on:change={handleFileSelect} hidden />
+              SFOGLIA FILE
+            </label>
+            <p class="drop-formats">Formati: 2024-01-15.txt, 15-01-2024.txt</p>
+          {:else}
+            <div class="files-list">
+              {#each selectedFiles as file, index}
+                <div class="file-item">
+                  <span class="file-icon">description</span>
+                  <span class="file-name">{file.name}</span>
+                  <button class="file-remove" on:click={() => removeFile(index)}>×</button>
+                </div>
+              {/each}
+            </div>
+
+            <div class="import-actions">
+              <button class="clear-btn" on:click={clearFiles} disabled={isImporting}>
+                ANNULLA
+              </button>
+              <button class="import-btn" on:click={doImport} disabled={isImporting}>
+                {#if isImporting}
+                  <span class="spinner"></span>
+                  IMPORTANDO...
+                {:else}
+                  <span class="btn-icon">cloud_upload</span>
+                  IMPORTA {selectedFiles.length} FILE
+                {/if}
+              </button>
+            </div>
+          {/if}
+        </div>
+
+        {#if importResult}
+          <div class="result-box success">
+            <span class="result-icon">check_circle</span>
+            <div class="result-text">
+              <strong>Import completato!</strong>
+              <p>{importResult.imported} importati, {importResult.skipped} saltati</p>
+            </div>
           </div>
+        {/if}
 
-          <div class="import-actions">
-            <button class="clear-btn" on:click={clearFiles} disabled={isImporting}>
-              ANNULLA
-            </button>
-            <button class="import-btn" on:click={doImport} disabled={isImporting}>
-              {#if isImporting}
-                <span class="spinner"></span>
-                IMPORTANDO...
-              {:else}
-                <span class="btn-icon">cloud_upload</span>
-                IMPORTA {selectedFiles.length} FILE
-              {/if}
-            </button>
+        {#if importError}
+          <div class="result-box error">
+            <span class="result-icon">error</span>
+            <div class="result-text">
+              <strong>Errore</strong>
+              <p>{importError}</p>
+            </div>
           </div>
         {/if}
       </div>
 
-      {#if importResult}
-        <div class="result-box success">
-          <span class="result-icon">check_circle</span>
-          <div class="result-text">
-            <strong>Import completato!</strong>
-            <p>{importResult.imported} importati, {importResult.skipped} saltati</p>
-          </div>
+      <!-- Export Section -->
+      <div class="export-section">
+        <div class="section-header">
+          <span class="section-icon">download</span>
+          <span class="section-title">ESPORTA BACKUP</span>
         </div>
-      {/if}
 
-      {#if importError}
-        <div class="result-box error">
-          <span class="result-icon">error</span>
-          <div class="result-text">
-            <strong>Errore</strong>
-            <p>{importError}</p>
-          </div>
+        <div class="export-info">
+          <p>Scarica archivio ZIP con: diario, memoria, knowledge base, emozioni</p>
         </div>
-      {/if}
-    </div>
 
-    <!-- Export Section -->
-    <div class="export-section">
-      <div class="section-header">
-        <span class="section-icon">download</span>
-        <span class="section-title">ESPORTA BACKUP</span>
-      </div>
+        <button class="export-btn" on:click={doExport} disabled={isExporting}>
+          {#if isExporting}
+            <span class="spinner"></span>
+            ESPORTANDO...
+          {:else}
+            <span class="btn-icon">archive</span>
+            SCARICA BACKUP ZIP
+          {/if}
+        </button>
 
-      <div class="export-info">
-        <p>Scarica archivio ZIP con: diario, memoria, knowledge base, emozioni</p>
-      </div>
-
-      <button class="export-btn" on:click={doExport} disabled={isExporting}>
-        {#if isExporting}
-          <span class="spinner"></span>
-          ESPORTANDO...
-        {:else}
-          <span class="btn-icon">archive</span>
-          SCARICA BACKUP ZIP
+        {#if exportSuccess}
+          <div class="result-box success">
+            <span class="result-icon">check_circle</span>
+            <span>Download avviato!</span>
+          </div>
         {/if}
-      </button>
 
-      {#if exportSuccess}
-        <div class="result-box success">
-          <span class="result-icon">check_circle</span>
-          <span>Download avviato!</span>
-        </div>
-      {/if}
+        {#if exportError}
+          <div class="result-box error">
+            <span class="result-icon">error</span>
+            <span>{exportError}</span>
+          </div>
+        {/if}
+      </div>
 
-      {#if exportError}
-        <div class="result-box error">
-          <span class="result-icon">error</span>
-          <span>{exportError}</span>
+      <!-- Maintenance Section -->
+      <div class="maintenance-section">
+        <div class="section-header">
+          <span class="section-icon">build</span>
+          <span class="section-title">MANUTENZIONE SISTEMA</span>
         </div>
-      {/if}
+
+        <div class="maintenance-actions">
+          <button class="maintenance-btn" on:click={handleRebuild} disabled={isRebuilding}>
+            {#if isRebuilding}
+              <span class="spinner"></span>
+              RICOSTRUZIONE...
+            {:else}
+              <span class="btn-icon">memory</span>
+              RICOSTRUISCI MEMORIA
+            {/if}
+          </button>
+
+          <button class="maintenance-btn" on:click={handleAnalysis} disabled={isAnalyzing}>
+            {#if isAnalyzing}
+              <span class="spinner"></span>
+              ANALISI IN CORSO...
+            {:else}
+              <span class="btn-icon">psychology</span>
+              AGGIORNA CONOSCENZA
+            {/if}
+          </button>
+        </div>
+      </div>
     </div>
 
     <!-- Save Button -->
@@ -539,10 +623,29 @@
     gap: 16px;
   }
 
-  .icon {
+  .item-icon, .section-icon, .drop-icon, .btn-icon, .result-icon, .modal-icon, .icon {
     font-family: 'Material Symbols Outlined';
-    font-size: 28px;
-    font-variation-settings: 'FILL' 1, 'wght' 400;
+    font-weight: normal;
+    font-style: normal;
+    font-size: 24px;  /* Preferred icon size */
+    display: inline-block;
+    line-height: 1;
+    text-transform: none;
+    letter-spacing: normal;
+    word-wrap: normal;
+    white-space: nowrap;
+    direction: ltr;
+
+    /* Support for all WebKit browsers. */
+    -webkit-font-smoothing: antialiased;
+    /* Support for Safari and Chrome. */
+    text-rendering: optimizeLegibility;
+
+    /* Support for Firefox. */
+    -moz-osx-font-smoothing: grayscale;
+
+    /* Support for IE. */
+    font-feature-settings: 'liga';
   }
 
   .title {
@@ -555,11 +658,12 @@
   /* Settings List */
   .settings-list {
     width: 100%;
-    max-width: 500px;
+    /* max-width: 500px; */ /* Removed max-width to let it expand */
     display: flex;
-    flex-direction: column;
-    gap: 6px;
-    margin-bottom: 32px;
+    /* flex-direction: column; */ /* Changed to row/wrap for better space usage */
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-bottom: 24px;
     flex-shrink: 0;
   }
 
@@ -576,88 +680,87 @@
     cursor: pointer;
     text-align: left;
     transition: all 0.15s;
+    /* Allow items to flex */
+    flex: 1 1 200px; /* Grow, shrink, base width */
+    min-width: 200px;
   }
 
-  .setting-item:hover:not(.disabled) {
-    border-color: white;
-    background: rgba(255, 255, 255, 0.05);
-  }
-
-  .setting-item.selected {
-    background: white;
-    color: black;
-  }
-
-  .setting-item.disabled {
-    opacity: 0.3;
-    cursor: not-allowed;
-  }
-
-  .item-icon {
-    font-family: 'Material Symbols Outlined';
-    font-size: 20px;
-    font-variation-settings: 'FILL' 1, 'wght' 400;
-    width: 24px;
-  }
-
-  .item-label {
-    font-weight: bold;
-  }
-
-  .item-value {
-    margin-left: auto;
-    opacity: 0.8;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-
-  .arrow {
-    opacity: 0.5;
-    font-size: 18px;
-  }
+  /* ... rest of styles ... */
 
   /* Sections */
-  .import-section, .export-section {
+  .import-section, .export-section, .maintenance-section {
     width: 100%;
-    max-width: 500px;
+    /* max-width: 500px; */ /* Removed max-width */
     margin-bottom: 24px;
     flex-shrink: 0;
+    /* Display side-by-side on larger screens */
+    flex: 1 1 300px;
   }
-
-  .section-header {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    margin-bottom: 12px;
-    padding-bottom: 8px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+  
+  /* User info in header */
+  .user-info {
+    margin-top: 8px;
+    font-size: 11px;
+    opacity: 0.6;
+    font-family: 'JetBrains Mono', monospace;
   }
-
-  .section-icon {
-    font-family: 'Material Symbols Outlined';
-    font-size: 20px;
-    font-variation-settings: 'FILL' 1, 'wght' 400;
-  }
-
-  .section-title {
-    font-size: 12px;
-    font-weight: bold;
-    letter-spacing: 0.15em;
-  }
-
-  /* Drop Zone */
-  .drop-zone {
-    border: 2px dashed rgba(255, 255, 255, 0.3);
-    padding: 24px 16px;
-    text-align: center;
-    transition: all 0.2s;
-    min-height: 140px;
+  
+  /* Maintenance Section */
+  .maintenance-actions {
     display: flex;
     flex-direction: column;
+    gap: 12px;
+  }
+
+  .maintenance-btn {
+    padding: 12px 16px;
+    border: 1px solid white;
+    background: transparent;
+    color: white;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    font-weight: bold;
+    letter-spacing: 0.1em;
+    cursor: pointer;
+    transition: all 0.15s;
+    display: flex;
     align-items: center;
     justify-content: center;
+    gap: 8px;
+    width: 100%;
   }
+
+  .maintenance-btn:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.1);
+  }
+
+  .maintenance-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+  
+  .settings-container {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    /* align-items: center; */ /* Changed to stretch/start */
+    padding: 32px 40px; /* Increased side padding */
+    overflow-y: auto;
+    min-height: 0;
+    max-width: 1200px; /* Max width for large screens */
+    margin: 0 auto; /* Center the container */
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  /* Layout wrapper for import/export side-by-side */
+  .io-wrapper {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 24px;
+      width: 100%;
+  }
+
 
   .drop-zone.dragging {
     border-color: white;

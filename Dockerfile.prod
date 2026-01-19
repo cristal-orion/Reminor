@@ -1,0 +1,30 @@
+# Dockerfile.prod - Backend FastAPI ottimizzato per produzione
+FROM python:3.11-slim
+
+# Evita buffering output Python
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONDONTWRITEBYTECODE=1
+
+WORKDIR /app
+
+# Installa dipendenze di sistema
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copia requirements e installa dipendenze Python
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copia il codice backend
+COPY backend/ ./backend/
+COPY memvid_memory.py ./
+
+# Crea directory per i dati
+RUN mkdir -p /app/data
+
+# Esponi porta
+EXPOSE 8000
+
+# Comando di avvio con gunicorn per produzione
+CMD ["python", "-m", "uvicorn", "backend.api.main:app", "--host", "0.0.0.0", "--port", "8000"]

@@ -1,6 +1,7 @@
 <script>
   import { onMount, onDestroy } from 'svelte';
-  import { currentPage } from './lib/stores.js';
+  import { currentPage, isAuthenticated } from './lib/stores.js';
+  import { initAuth } from './lib/auth.js';
 
   // Components
   import Header from './lib/components/Header.svelte';
@@ -15,6 +16,11 @@
   import Statistiche from './lib/pages/Statistiche.svelte';
   import Settings from './lib/pages/Settings.svelte';
   import Search from './lib/pages/Search.svelte';
+  import Login from './lib/pages/Login.svelte';
+
+  // Auth initialization state
+  let authInitialized = false;
+  let authLoading = true;
 
   // Page components map
   const pages = {
@@ -26,6 +32,7 @@
     statistiche: Statistiche,
     settings: Settings,
     search: Search,
+    login: Login,
   };
 
   // Footer hints per page
@@ -56,6 +63,10 @@
     statistiche: [
       { key: '[ESC]', label: 'MENU' },
     ],
+    login: [
+      { key: '[ENTER]', label: 'CONFERMA' },
+      { key: '[TAB]', label: 'CAMPO' },
+    ],
     default: [
       { key: '[ESC]', label: 'MENU' },
     ],
@@ -64,7 +75,17 @@
   $: CurrentPage = pages[$currentPage] || Home;
   $: hints = footerHints[$currentPage] || footerHints.default;
 
+  // Redirect to login if not authenticated
+  $: {
+    if (authInitialized && !$isAuthenticated && $currentPage !== 'login') {
+      currentPage.set('login');
+    }
+  }
+
   function handleGlobalKeydown(e) {
+    // Don't handle navigation if on login page
+    if ($currentPage === 'login') return;
+
     // ESC to go back to home
     if (e.key === 'Escape' && $currentPage !== 'home') {
       e.preventDefault();
@@ -88,7 +109,18 @@
     }
   }
 
-  onMount(() => {
+  onMount(async () => {
+    // Initialize authentication
+    authLoading = true;
+    const authenticated = await initAuth();
+    authInitialized = true;
+    authLoading = false;
+
+    // If not authenticated, redirect to login
+    if (!authenticated) {
+      currentPage.set('login');
+    }
+
     window.addEventListener('keydown', handleGlobalKeydown);
   });
 
@@ -98,16 +130,27 @@
 </script>
 
 <div class="app-container">
-  <!-- Header (sempre visibile, uguale in tutte le pagine) -->
-  <Header />
-
-  <!-- Main content -->
-  <main class="main-content">
-    <svelte:component this={CurrentPage} />
-  </main>
-
-  <!-- Footer -->
-  <Footer {hints} />
+  {#if authLoading}
+    <!-- Loading state while checking auth -->
+    <div class="loading-screen">
+      <div class="loading-text">INIZIALIZZAZIONE SISTEMA...</div>
+      <div class="loading-bar">
+        <div class="loading-progress"></div>
+      </div>
+    </div>
+  {:else if $currentPage === 'login'}
+    <!-- Login page (no header/footer) -->
+    <main class="main-content full-height">
+      <Login />
+    </main>
+  {:else}
+    <!-- Authenticated app -->
+    <Header />
+    <main class="main-content">
+      <svelte:component this={CurrentPage} />
+    </main>
+    <Footer {hints} />
+  {/if}
 </div>
 
 <style>
@@ -131,5 +174,50 @@
     display: flex;
     flex-direction: column;
     min-height: 0;
+  }
+
+  .main-content.full-height {
+    height: 100vh;
+  }
+
+  /* Loading screen */
+  .loading-screen {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 20px;
+  }
+
+  .loading-text {
+    font-size: 12px;
+    letter-spacing: 0.2em;
+    opacity: 0.7;
+    animation: pulse 1s ease-in-out infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 0.5; }
+    50% { opacity: 1; }
+  }
+
+  .loading-bar {
+    width: 200px;
+    height: 2px;
+    background: rgba(255, 255, 255, 0.2);
+    overflow: hidden;
+  }
+
+  .loading-progress {
+    height: 100%;
+    width: 30%;
+    background: white;
+    animation: loading 1s ease-in-out infinite;
+  }
+
+  @keyframes loading {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(400%); }
   }
 </style>

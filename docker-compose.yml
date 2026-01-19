@@ -16,6 +16,7 @@ services:
     environment:
       - PYTHONUNBUFFERED=1
       - DATA_DIR=/app/data
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY:-reminor-docker-secret-change-me}
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
       interval: 30s
