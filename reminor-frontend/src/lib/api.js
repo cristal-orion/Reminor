@@ -112,7 +112,17 @@ async function apiCall(endpoint, options = {}, requireAuth = true) {
     }
 
     if (!response.ok) {
-      throw new Error(`API Error: ${response.status} ${response.statusText}`);
+      // Try to extract detail message from FastAPI error response
+      let errorMessage = `API Error: ${response.status} ${response.statusText}`;
+      try {
+        const errorData = await response.json();
+        if (errorData.detail) {
+          errorMessage = errorData.detail;
+        }
+      } catch {
+        // Response wasn't JSON, use default message
+      }
+      throw new Error(errorMessage);
     }
 
     return response.json();
@@ -161,17 +171,9 @@ export async function searchEntries(query, limit = 10) {
 // ==================== EMOTIONS API ====================
 
 export async function analyzeEmotions(date) {
-  const llmConfig = getLLMConfig();
-
-  const payload = {
-    provider: llmConfig.provider || 'groq',
-    model: llmConfig.model || null,
-    api_key: llmConfig.apiKey || null,
-  };
-
   return apiCall(`/journal/entries/${date}/analyze`, {
     method: 'POST',
-    body: JSON.stringify(payload),
+    body: JSON.stringify({}),
   });
 }
 
@@ -205,36 +207,70 @@ function getCurrentUserId() {
 }
 
 /**
- * Get LLM configuration from localStorage (user-specific)
+ * Get LLM configuration from server
  */
-function getLLMConfig() {
+export async function getLLMConfigFromServer() {
+  return apiCall('/auth/settings/llm');
+}
+
+/**
+ * Save LLM configuration to server (API key encrypted server-side)
+ */
+export async function saveLLMConfigToServer(provider, model, apiKey = null) {
+  const payload = { provider, model };
+  if (apiKey) {
+    payload.api_key = apiKey;
+  }
+  return apiCall('/auth/settings/llm', {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  });
+}
+
+/**
+ * Migrate LLM config from localStorage to server (one-time)
+ */
+export async function migrateLLMConfigToServer() {
+  const userId = getCurrentUserId();
+  const storageKey = `reminor_llm_config_${userId}`;
+  const migratedKey = `${storageKey}_migrated`;
+
+  // Skip if already migrated
+  if (localStorage.getItem(migratedKey)) {
+    return null;
+  }
+
+  const saved = localStorage.getItem(storageKey);
+  if (!saved) {
+    return null;
+  }
+
   try {
-    const userId = getCurrentUserId();
-    const storageKey = `reminor_llm_config_${userId}`;
-    const saved = localStorage.getItem(storageKey);
-    if (saved) {
-      return JSON.parse(saved);
+    const config = JSON.parse(saved);
+    if (config.apiKey) {
+      const result = await saveLLMConfigToServer(
+        config.provider || 'groq',
+        config.model || null,
+        config.apiKey
+      );
+      // Mark as migrated and remove the key from localStorage
+      localStorage.setItem(migratedKey, 'true');
+      localStorage.removeItem(storageKey);
+      return result;
     }
   } catch (e) {
-    console.error('Error loading LLM config:', e);
+    console.error('Error migrating LLM config:', e);
   }
-  return { provider: 'groq', model: null, apiKey: null };
+  return null;
 }
 
 export async function sendChatMessage(message, includeContext = true) {
-  const llmConfig = getLLMConfig();
-
-  const payload = {
-    message,
-    include_context: includeContext,
-    provider: llmConfig.provider || 'groq',
-    model: llmConfig.model || null,
-    api_key: llmConfig.apiKey || null,
-  };
-
   return apiCall(`/chat`, {
     method: 'POST',
-    body: JSON.stringify(payload),
+    body: JSON.stringify({
+      message,
+      include_context: includeContext,
+    }),
   });
 }
 

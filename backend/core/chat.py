@@ -357,7 +357,18 @@ Sei l'AI di Reminor, il compagno digitale che ha letto il diario dell'utente.
 
         except litellm.AuthenticationError as e:
             return {
-                "response": f"Errore di autenticazione: API key non valida per {provider}",
+                "response": f"API key non valida per {provider}. Vai nelle Impostazioni per aggiornare la chiave.",
+                "error": True
+            }
+        except litellm.BadRequestError as e:
+            error_msg = str(e).lower()
+            if "api key" in error_msg or "api_key" in error_msg or "invalid" in error_msg:
+                return {
+                    "response": f"API key non valida o scaduta per {provider}. Vai nelle Impostazioni per configurare una nuova chiave.",
+                    "error": True
+                }
+            return {
+                "response": f"Errore nella richiesta a {provider}: {str(e)}",
                 "error": True
             }
         except litellm.RateLimitError as e:
@@ -371,6 +382,12 @@ Sei l'AI di Reminor, il compagno digitale che ha letto il diario dell'utente.
                 "error": True
             }
         except Exception as e:
+            error_msg = str(e).lower()
+            if "api key" in error_msg or "api_key" in error_msg or "invalid api" in error_msg:
+                return {
+                    "response": f"API key non valida per {provider}. Vai nelle Impostazioni per aggiornare la chiave.",
+                    "error": True
+                }
             return {
                 "response": f"Errore: {str(e)}",
                 "error": True

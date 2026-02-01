@@ -6,7 +6,7 @@ Handles user registration, login, token refresh, and user info.
 from datetime import datetime
 from fastapi import APIRouter, HTTPException, status, Depends
 
-from models.schemas import UserCreate, UserLogin, UserResponse, TokenResponse
+from models.schemas import UserCreate, UserLogin, UserResponse, TokenResponse, LLMConfigUpdate, LLMConfigResponse
 from core.auth import (
     create_user,
     authenticate_user,
@@ -14,6 +14,10 @@ from core.auth import (
     decode_token,
     get_user_by_id,
     get_current_user,
+    get_user_llm_config,
+    save_user_llm_config,
+    mask_api_key,
+    decrypt_api_key,
     CurrentUser,
 )
 
@@ -112,4 +116,55 @@ async def get_current_user_info(current_user: CurrentUser = Depends(get_current_
         email=user["email"],
         name=user.get("name"),
         created_at=datetime.fromisoformat(user["created_at"]),
+    )
+
+
+@router.get("/settings/llm", response_model=LLMConfigResponse)
+async def get_llm_config(current_user: CurrentUser = Depends(get_current_user)):
+    """
+    Get current user's saved LLM configuration.
+    API key is returned masked.
+    """
+    config = get_user_llm_config(current_user.id)
+
+    if not config:
+        return LLMConfigResponse()
+
+    has_key = bool(config.get("api_key"))
+    preview = mask_api_key(config["api_key"]) if has_key else None
+
+    return LLMConfigResponse(
+        provider=config.get("provider", "groq"),
+        model=config.get("model"),
+        has_api_key=has_key,
+        api_key_preview=preview,
+    )
+
+
+@router.put("/settings/llm", response_model=LLMConfigResponse)
+async def update_llm_config(
+    config: LLMConfigUpdate,
+    current_user: CurrentUser = Depends(get_current_user),
+):
+    """
+    Save LLM configuration for the current user.
+    API key is encrypted before storage.
+    """
+    save_user_llm_config(
+        user_id=current_user.id,
+        provider=config.provider,
+        model=config.model,
+        api_key=config.api_key,
+    )
+
+    # Return the saved config with masked key
+    saved = get_user_llm_config(current_user.id)
+    has_key = bool(saved and saved.get("api_key"))
+    preview = mask_api_key(saved["api_key"]) if has_key else None
+
+    return LLMConfigResponse(
+        provider=config.provider,
+        model=config.model,
+        has_api_key=has_key,
+        api_key_preview=preview,
     )

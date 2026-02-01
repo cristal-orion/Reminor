@@ -5,6 +5,8 @@ Handles password hashing, token creation/verification, and user authentication.
 
 import os
 import json
+import hashlib
+import base64
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Optional
@@ -12,6 +14,7 @@ import uuid
 
 from jose import JWTError, jwt
 import bcrypt
+from cryptography.fernet import Fernet
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
@@ -173,6 +176,96 @@ def authenticate_user(email: str, password: str) -> Optional[dict]:
     if not verify_password(password, user.get("password_hash", "")):
         return None
     return user
+
+
+# ==================== API KEY ENCRYPTION ====================
+
+
+def _get_fernet() -> Fernet:
+    """Derive a Fernet key from JWT_SECRET_KEY."""
+    key_bytes = JWT_SECRET_KEY.encode("utf-8")
+    # Derive a 32-byte key using SHA256, then base64-encode for Fernet
+    derived = hashlib.sha256(key_bytes).digest()
+    fernet_key = base64.urlsafe_b64encode(derived)
+    return Fernet(fernet_key)
+
+
+def encrypt_api_key(api_key: str) -> str:
+    """Encrypt an API key using Fernet."""
+    f = _get_fernet()
+    return f.encrypt(api_key.encode("utf-8")).decode("utf-8")
+
+
+def decrypt_api_key(encrypted_key: str) -> str:
+    """Decrypt an API key using Fernet."""
+    f = _get_fernet()
+    return f.decrypt(encrypted_key.encode("utf-8")).decode("utf-8")
+
+
+def mask_api_key(api_key: str) -> str:
+    """Return a masked preview of an API key, e.g. 'sk-...abc123'."""
+    if not api_key or len(api_key) < 8:
+        return "***"
+    return api_key[:3] + "..." + api_key[-4:]
+
+
+# ==================== LLM CONFIG FUNCTIONS ====================
+
+
+def get_user_llm_config(user_id: str) -> Optional[dict]:
+    """
+    Get the saved LLM config for a user from users.json.
+    Returns dict with provider, model, api_key (decrypted) or None.
+    """
+    users = get_users_db()
+    user_data = users.get(user_id)
+    if not user_data:
+        return None
+
+    llm_config = user_data.get("llm_config")
+    if not llm_config:
+        return None
+
+    result = {
+        "provider": llm_config.get("provider", "groq"),
+        "model": llm_config.get("model"),
+        "api_key": None,
+    }
+
+    encrypted_key = llm_config.get("encrypted_api_key")
+    if encrypted_key:
+        try:
+            result["api_key"] = decrypt_api_key(encrypted_key)
+        except Exception:
+            result["api_key"] = None
+
+    return result
+
+
+def save_user_llm_config(user_id: str, provider: str, model: Optional[str] = None, api_key: Optional[str] = None) -> None:
+    """
+    Save LLM config for a user in users.json.
+    The API key is encrypted before storage.
+    """
+    users = get_users_db()
+    if user_id not in users:
+        return
+
+    llm_config = {
+        "provider": provider,
+        "model": model,
+    }
+
+    if api_key:
+        llm_config["encrypted_api_key"] = encrypt_api_key(api_key)
+    else:
+        # Preserve existing encrypted key if no new key provided
+        existing = users[user_id].get("llm_config", {})
+        if existing.get("encrypted_api_key"):
+            llm_config["encrypted_api_key"] = existing["encrypted_api_key"]
+
+    users[user_id]["llm_config"] = llm_config
+    save_users_db(users)
 
 
 # ==================== FASTAPI DEPENDENCIES ====================

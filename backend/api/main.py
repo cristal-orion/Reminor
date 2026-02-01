@@ -31,7 +31,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from core.memory import MemoryManager
 from core.chat import ChatService
 from core.emotions import EmotionsAnalyzer
-from core.auth import get_current_user, CurrentUser
+from core.auth import get_current_user, get_user_llm_config, CurrentUser
 from models.schemas import (
     JournalEntry,
     JournalEntryCreate,
@@ -264,10 +264,21 @@ async def analyze_entry(
     if content is None:
         raise HTTPException(status_code=404, detail="Entry not found")
 
-    # Get LLM settings from request (or use defaults)
+    # Get LLM settings from request, fallback to saved user config
     api_key = request.api_key if request else None
-    provider = request.provider if request and request.provider else "groq"
+    provider = request.provider if request and request.provider else None
     model = request.model if request else None
+
+    if not api_key:
+        saved_config = get_user_llm_config(user_id)
+        if saved_config:
+            api_key = saved_config.get("api_key") or api_key
+            if not provider:
+                provider = saved_config.get("provider")
+            if not model:
+                model = saved_config.get("model")
+
+    provider = provider or "groq"
 
     # Analyze emotions with LLM settings
     analysis = ea.analyze_full(
@@ -411,19 +422,38 @@ async def chat(
 ):
     """Send a chat message with multi-provider LLM support"""
     user_id = current_user.id
+
+    # Resolve LLM config: request > saved user config
+    api_key = request.api_key
+    provider = request.provider
+    model = request.model
+
+    if not api_key:
+        saved_config = get_user_llm_config(user_id)
+        if saved_config:
+            api_key = saved_config.get("api_key") or api_key
+            if not provider:
+                provider = saved_config.get("provider")
+            if not model:
+                model = saved_config.get("model")
+
+    provider = provider or "groq"
+
     try:
         result = await cs.chat(
             user_id=user_id,
             message=request.message,
             include_context=request.include_context,
-            provider=request.provider or "groq",
-            model=request.model,
-            user_api_key=request.api_key,
+            provider=provider,
+            model=model,
+            user_api_key=api_key,
         )
 
         if result.get("error"):
             print(f"[CHAT ERROR] {result['response']}")
             raise HTTPException(status_code=500, detail=result["response"])
+    except HTTPException:
+        raise
     except Exception as e:
         print(f"[CHAT EXCEPTION] {type(e).__name__}: {e}")
         import traceback

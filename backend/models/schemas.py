@@ -119,6 +119,26 @@ class WeeklyEmotions(BaseModel):
     days: Dict[str, Optional[EmotionScores]]
 
 
+# ==================== LLM CONFIG MODELS ====================
+
+
+class LLMConfigUpdate(BaseModel):
+    """Schema for saving LLM configuration (input)"""
+
+    provider: str = Field("groq", pattern=r"^(groq|openai|anthropic|gemini|mistral|deepseek)$")
+    model: Optional[str] = None
+    api_key: Optional[str] = None  # Plain text, will be encrypted server-side
+
+
+class LLMConfigResponse(BaseModel):
+    """Schema for LLM configuration response (key masked)"""
+
+    provider: str = "groq"
+    model: Optional[str] = None
+    has_api_key: bool = False
+    api_key_preview: Optional[str] = None  # e.g. "sk-...abc123"
+
+
 # ==================== CHAT MODELS ====================
 
 

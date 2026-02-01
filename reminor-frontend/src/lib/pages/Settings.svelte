@@ -1,6 +1,6 @@
 <script>
   import { settings, currentUser } from '../stores.js';
-  import { importDiaryFiles, rebuildMemory, downloadBackupZip, triggerKnowledgeAnalysis } from '../api.js';
+  import { importDiaryFiles, rebuildMemory, downloadBackupZip, triggerKnowledgeAnalysis, getLLMConfigFromServer, saveLLMConfigToServer, migrateLLMConfigToServer } from '../api.js';
   import { logout } from '../auth.js';
 
 
@@ -54,40 +54,50 @@
   let selectedProvider = 'groq';
   let selectedModel = 'llama-3.3-70b-versatile';
   let apiKey = '';
-  let isTesting = false;
+  let isSaving = false;
   let testResult = null;
+  let hasStoredKey = false;
+  let apiKeyPreview = '';
 
-  // Get storage key for current user
-  function getLLMStorageKey() {
-    const userId = $currentUser?.id || 'default';
-    return `reminor_llm_config_${userId}`;
-  }
+  // Load saved config from server (+ one-time migration from localStorage)
+  async function loadLLMConfig() {
+    try {
+      // Try one-time migration from localStorage
+      await migrateLLMConfigToServer();
 
-  // Load saved config from localStorage (user-specific)
-  function loadLLMConfig() {
-    const storageKey = getLLMStorageKey();
-    const saved = localStorage.getItem(storageKey);
-    if (saved) {
-      try {
-        const config = JSON.parse(saved);
+      // Load from server
+      const config = await getLLMConfigFromServer();
+      if (config) {
         selectedProvider = config.provider || 'groq';
-        selectedModel = config.model || 'llama-3.3-70b-versatile';
-        apiKey = config.apiKey || '';
-      } catch (e) {
-        console.error('Error loading LLM config:', e);
+        selectedModel = config.model || providers.find(p => p.id === selectedProvider)?.models[0] || 'llama-3.3-70b-versatile';
+        hasStoredKey = config.has_api_key || false;
+        apiKeyPreview = config.api_key_preview || '';
+        apiKey = '';  // Never populate the actual key
       }
+    } catch (e) {
+      console.error('Error loading LLM config:', e);
     }
   }
 
-  // Save config to localStorage (user-specific)
-  function saveLLMConfig() {
-    const storageKey = getLLMStorageKey();
-    const config = {
-      provider: selectedProvider,
-      model: selectedModel,
-      apiKey: apiKey
-    };
-    localStorage.setItem(storageKey, JSON.stringify(config));
+  // Save config to server
+  async function saveLLMConfig() {
+    isSaving = true;
+    testResult = null;
+    try {
+      const result = await saveLLMConfigToServer(
+        selectedProvider,
+        selectedModel,
+        apiKey.trim() || null  // Only send key if user entered a new one
+      );
+      hasStoredKey = result.has_api_key || false;
+      apiKeyPreview = result.api_key_preview || '';
+      apiKey = '';  // Clear input after save
+      testResult = { success: true, message: 'Configurazione salvata sul server!' };
+    } catch (e) {
+      testResult = { success: false, message: e.message || 'Errore nel salvataggio' };
+    } finally {
+      isSaving = false;
+    }
   }
 
   // Get models for selected provider
@@ -102,34 +112,24 @@
     testResult = null;
   }
 
-  // Test API connection
-  async function testConnection() {
-    if (!apiKey.trim()) {
+  // Save LLM config (modal save button)
+  async function saveAndClose() {
+    if (!apiKey.trim() && !hasStoredKey) {
       testResult = { success: false, message: 'Inserisci una API key' };
       return;
     }
 
-    isTesting = true;
-    testResult = null;
-
-    try {
-      // For now, just save and show success - actual test would require backend endpoint
-      saveLLMConfig();
-      testResult = { success: true, message: 'Configurazione salvata!' };
-    } catch (e) {
-      testResult = { success: false, message: e.message || 'Errore di connessione' };
-    } finally {
-      isTesting = false;
+    await saveLLMConfig();
+    if (testResult?.success) {
+      setTimeout(() => closeLLMModal(), 1000);
     }
   }
 
-  // Close modal and save
-  function closeLLMModal(save = false) {
-    if (save && apiKey.trim()) {
-      saveLLMConfig();
-    }
+  // Close modal
+  function closeLLMModal() {
     showLLMModal = false;
     testResult = null;
+    apiKey = '';  // Clear input when closing
   }
 
   // Reload config when user changes
@@ -177,7 +177,7 @@
         settingsItems = [...settingsItems];
       }
     } else if (e.key === 'Escape' && showLLMModal) {
-      closeLLMModal(false);
+      closeLLMModal();
     }
   }
 
@@ -191,9 +191,11 @@
     }
   }
 
-  function save() {
-    saveLLMConfig();
-    alert('Impostazioni salvate!');
+  async function save() {
+    await saveLLMConfig();
+    if (testResult?.success) {
+      alert('Impostazioni salvate!');
+    }
   }
 
   // Drag & Drop handlers
@@ -530,12 +532,12 @@
 
 <!-- LLM Configuration Modal -->
 {#if showLLMModal}
-  <div class="modal-overlay" on:click={() => closeLLMModal(false)}>
+  <div class="modal-overlay" on:click={() => closeLLMModal()}>
     <div class="modal" on:click|stopPropagation>
       <div class="modal-header">
         <span class="modal-icon">smart_toy</span>
         <h2>CONFIGURAZIONE LLM</h2>
-        <button class="modal-close" on:click={() => closeLLMModal(false)}>×</button>
+        <button class="modal-close" on:click={() => closeLLMModal()}>×</button>
       </div>
 
       <div class="modal-body">
@@ -563,9 +565,9 @@
             type="password"
             id="apikey"
             bind:value={apiKey}
-            placeholder="Inserisci la tua API key..."
+            placeholder={hasStoredKey ? `Key salvata: ${apiKeyPreview}` : 'Inserisci la tua API key...'}
           />
-          <p class="hint">La key viene salvata localmente nel browser</p>
+          <p class="hint">{hasStoredKey ? 'Key salvata sul server, crittografata. Lascia vuoto per mantenere quella attuale.' : 'La key verrà salvata sul server, crittografata.'}</p>
         </div>
 
         {#if testResult}
@@ -577,11 +579,11 @@
       </div>
 
       <div class="modal-footer">
-        <button class="modal-btn secondary" on:click={() => closeLLMModal(false)}>
+        <button class="modal-btn secondary" on:click={() => closeLLMModal()}>
           ANNULLA
         </button>
-        <button class="modal-btn primary" on:click={testConnection} disabled={isTesting}>
-          {#if isTesting}
+        <button class="modal-btn primary" on:click={saveAndClose} disabled={isSaving}>
+          {#if isSaving}
             <span class="spinner"></span>
           {:else}
             <span class="btn-icon">save</span>

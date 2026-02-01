@@ -29,9 +29,11 @@
       const response = await sendChatMessage(userMessage);
       chatMessages.update(msgs => [...msgs, { role: 'ai', content: response.response }]);
     } catch (e) {
+      const errorMsg = e.message || 'Errore sconosciuto';
       chatMessages.update(msgs => [...msgs, {
         role: 'ai',
-        content: 'Mi dispiace, si è verificato un errore. Riprova più tardi.'
+        content: errorMsg,
+        isError: true
       }]);
     } finally {
       isLoading.set(false);
@@ -69,10 +71,10 @@
     <!-- Messages Area -->
     <div class="messages-area" bind:this={messagesContainer}>
       {#each $chatMessages as message}
-        <div class="message {message.role}">
+        <div class="message {message.role}" class:error={message.isError}>
           <div class="message-label">
             {#if message.role === 'ai'}
-              <span class="dot">○</span> SYSTEM_AI
+              <span class="dot">○</span> {message.isError ? 'SYSTEM_ERROR' : 'SYSTEM_AI'}
             {:else}
               USER_01 <span class="dot">●</span>
             {/if}
@@ -240,6 +242,15 @@
 
   .message-content p.loading {
     opacity: 0.5;
+  }
+
+  .message.error .message-content {
+    border-color: #f87171;
+    background: rgba(248, 113, 113, 0.05);
+  }
+
+  .message.error .message-label {
+    color: #f87171;
   }
 
   .input-area {
