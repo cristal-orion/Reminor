@@ -1,5 +1,8 @@
 import { writable, derived } from 'svelte/store';
 
+// Re-export locale from i18n
+export { locale } from './i18n.js';
+
 // ==================== AUTHENTICATION STORES ====================
 
 // Current authenticated user (null = not logged in)

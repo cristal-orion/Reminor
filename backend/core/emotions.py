@@ -88,7 +88,8 @@ class EmotionsAnalyzer:
         text: str,
         api_key: Optional[str] = None,
         provider: str = "groq",
-        model: Optional[str] = None
+        model: Optional[str] = None,
+        language: str = "it",
     ) -> Dict[str, Any]:
         """
         Full analysis including emotions and profile updates.
@@ -99,6 +100,7 @@ class EmotionsAnalyzer:
             api_key: API key for LLM provider
             provider: LLM provider (groq, openai, anthropic, gemini, mistral, deepseek)
             model: Specific model (optional)
+            language: User language for error messages
 
         Returns:
             Dict with emotions, daily_insights, profile_updates
@@ -109,12 +111,13 @@ class EmotionsAnalyzer:
         if not analyzer:
             # Fallback to simple analysis if analyzer not available
             if not api_key:
+                msg = "To analyze emotions, configure an API key in settings." if language == "en" else "Per l'analisi delle emozioni, configura una API key nelle impostazioni."
                 return {
                     "emotions": self._simple_analysis(text),
                     "daily_insights": None,
                     "profile_updates": None,
                     "error": True,
-                    "message": "Per l'analisi delle emozioni, configura una API key nelle impostazioni."
+                    "message": msg
                 }
             return {
                 "emotions": self._simple_analysis(text),
@@ -127,7 +130,8 @@ class EmotionsAnalyzer:
                 text,
                 api_key=api_key,
                 provider=provider,
-                model=model
+                model=model,
+                language=language,
             )
         except Exception as e:
             print(f"Error in full analysis: {e}")

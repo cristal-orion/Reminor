@@ -2,6 +2,7 @@
   import { onMount, onDestroy } from 'svelte';
   import { currentUser, selectedDate, isLoading, entriesCache, diaryCache } from '../stores.js';
   import { getEntry, saveEntry, analyzeEmotions, getEmotions } from '../api.js';
+  import { t, locale, getEmotionDisplayName } from '../i18n.js';
 
   let content = '';
   let wordCount = 0;
@@ -18,7 +19,7 @@
   ];
 
   // Format date for display
-  $: displayDate = new Date($selectedDate).toLocaleDateString('it-IT', {
+  $: displayDate = new Date($selectedDate).toLocaleDateString($locale === 'en' ? 'en-US' : 'it-IT', {
     day: 'numeric',
     month: 'long',
     year: 'numeric'
@@ -118,7 +119,7 @@
         localStorage.setItem(getStorageKey($selectedDate), content);
       }
 
-      lastSaved = new Date().toLocaleTimeString('it-IT');
+      lastSaved = new Date().toLocaleTimeString($locale === 'en' ? 'en-US' : 'it-IT');
 
       // Analyze emotions after save
       try {
@@ -237,7 +238,7 @@
     <div class="actions">
       <button class="action-btn" on:click={save} disabled={isSaving}>
         <span class="icon">save</span>
-        {isSaving ? 'SAVING...' : 'SALVA [^S]'}
+        {isSaving ? $t('diary.saving') : $t('diary.save')}
       </button>
       <button class="action-btn" on:click={exportEntry}>
         <span class="icon">download</span>
@@ -246,7 +247,7 @@
       {#if emotions}
         <button class="action-btn" on:click={() => showEmotions = !showEmotions}>
           <span class="icon">favorite</span>
-          EMOZIONI [F2]
+          {$t('diary.emotions_btn')}
         </button>
       {/if}
     </div>
@@ -259,7 +260,7 @@
       <textarea
         bind:value={content}
         class="editor"
-        placeholder="Inizia a scrivere il tuo pensiero..."
+        placeholder={$t('diary.placeholder')}
         spellcheck="false"
       ></textarea>
     </div>
@@ -269,7 +270,7 @@
       <div class="emotions-panel">
         <div class="emotions-header">
           <span class="icon">favorite</span>
-          <span>EMOZIONI RILEVATE</span>
+          <span>{$t('diary.emotions_detected')}</span>
           <button class="close-btn" on:click={() => showEmotions = false}>×</button>
         </div>
 
@@ -278,7 +279,7 @@
             {@const score = emotions.emotions ? (emotions.emotions[emotionName] || 0) : 0}
             <div class="emotion-item">
               <div class="emotion-row">
-                <span class="emotion-name">{emotionName}</span>
+                <span class="emotion-name">{getEmotionDisplayName(emotionName, $locale)}</span>
                 <span class="emotion-percent">{Math.round(score * 100)}%</span>
               </div>
               <div class="emotion-bar">
@@ -292,14 +293,14 @@
           <div class="insights-section">
             <div class="insights-header">
               <span class="icon">psychology</span>
-              <span>INSIGHT</span>
+              <span>{$t('diary.insight')}</span>
             </div>
             {#if emotions.daily_insights.mood_summary}
               <p class="mood-summary">{emotions.daily_insights.mood_summary}</p>
             {/if}
             {#if emotions.daily_insights.energy_level !== undefined}
               <div class="energy-row">
-                <span class="energy-label">ENERGIA</span>
+                <span class="energy-label">{$t('diary.energy')}</span>
                 <div class="energy-bar">
                   <div class="energy-fill" style="width: {emotions.daily_insights.energy_level * 100}%"></div>
                 </div>
@@ -317,17 +318,17 @@
     <div class="status-left">
       <span class="status-item">
         <span class="icon">memory</span>
-        STATUS: <span class="status-value">{isSaving ? 'SAVING' : 'IDLE'}</span>
+        {$t('diary.status')} <span class="status-value">{isSaving ? $t('diary.status_saving') : $t('diary.status_idle')}</span>
       </span>
       {#if lastSaved}
         <span class="status-item dimmed">
           <span class="icon">cloud_done</span>
-          SAVED: {lastSaved}
+          {$t('diary.status_saved')} {lastSaved}
         </span>
       {/if}
       {#if emotions}
         <span class="status-item dimmed">
-          [F2] EMOZIONI
+          {$t('diary.emotions_shortcut')}
         </span>
       {/if}
     </div>

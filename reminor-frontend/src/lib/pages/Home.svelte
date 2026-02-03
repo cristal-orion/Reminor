@@ -1,15 +1,16 @@
 <script>
   import { onMount, onDestroy } from 'svelte';
   import { currentPage } from '../stores.js';
+  import { t } from '../i18n.js';
 
-  const menuItems = [
-    { id: 'diario', label: 'NUOVA PAGINA', icon: 'edit_document' },
-    { id: 'calendario', label: 'CALENDARIO', icon: 'calendar_month' },
-    { id: 'search', label: 'RICERCA', icon: 'search' },
-    { id: 'chat', label: 'CHAT PENSIERI', icon: 'chat' },
-    { id: 'emozioni', label: 'EMOZIONI', icon: 'favorite' },
-    { id: 'statistiche', label: 'STATISTICHE', icon: 'bar_chart' },
-    { id: 'settings', label: 'IMPOSTAZIONI', icon: 'settings' },
+  $: menuItems = [
+    { id: 'diario', label: $t('home.new_page'), icon: 'edit_document' },
+    { id: 'calendario', label: $t('home.calendar'), icon: 'calendar_month' },
+    { id: 'search', label: $t('home.search'), icon: 'search' },
+    { id: 'chat', label: $t('home.chat'), icon: 'chat' },
+    { id: 'emozioni', label: $t('home.emotions'), icon: 'favorite' },
+    { id: 'statistiche', label: $t('home.statistics'), icon: 'bar_chart' },
+    { id: 'settings', label: $t('home.settings'), icon: 'settings' },
   ];
 
   let selectedIndex = 0;
@@ -49,7 +50,7 @@
 ██╔══██╗██╔══╝  ██║╚██╔╝██║██║██║╚██╗██║██║   ██║██╔══██╗
 ██║  ██║███████╗██║ ╚═╝ ██║██║██║ ╚████║╚██████╔╝██║  ██║
 ╚═╝  ╚═╝╚══════╝╚═╝     ╚═╝╚═╝╚═╝  ╚═══╝ ╚═════╝ ╚═╝  ╚═╝</pre>
-    <div class="subtitle">PERSONAL  KNOWLEDGE  RETRIEVAL  SYSTEM</div>
+    <div class="subtitle">{$t('home.subtitle')}</div>
   </div>
 
   <!-- Menu Box -->

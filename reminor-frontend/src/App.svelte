@@ -2,6 +2,7 @@
   import { onMount, onDestroy } from 'svelte';
   import { currentPage, isAuthenticated } from './lib/stores.js';
   import { initAuth } from './lib/auth.js';
+  import { t } from './lib/i18n.js';
 
   // Components
   import Header from './lib/components/Header.svelte';
@@ -35,40 +36,40 @@
     login: Login,
   };
 
-  // Footer hints per page
-  const footerHints = {
+  // Footer hints per page (reactive with $t)
+  $: footerHints = {
     home: [
-      { key: '↕', label: 'NAVIGA' },
-      { key: '[ENTER]', label: 'SELEZIONA' },
-      { key: '[ESC]', label: 'ESCI' },
+      { key: '↕', label: $t('hint.navigate') },
+      { key: '[ENTER]', label: $t('hint.select') },
+      { key: '[ESC]', label: $t('hint.exit') },
     ],
     diario: [
-      { key: '[^S]', label: 'SALVA' },
-      { key: '[ESC]', label: 'MENU' },
+      { key: '[^S]', label: $t('hint.save') },
+      { key: '[ESC]', label: $t('hint.menu') },
     ],
     calendario: [
-      { key: '←→', label: 'MESE' },
-      { key: '[ENTER]', label: 'APRI' },
-      { key: '[ESC]', label: 'MENU' },
+      { key: '←→', label: $t('hint.month') },
+      { key: '[ENTER]', label: $t('hint.open') },
+      { key: '[ESC]', label: $t('hint.menu') },
     ],
     chat: [
-      { key: '[ENTER]', label: 'INVIA' },
-      { key: '[ESC]', label: 'MENU' },
+      { key: '[ENTER]', label: $t('hint.send') },
+      { key: '[ESC]', label: $t('hint.menu') },
     ],
     emozioni: [
-      { key: '←→', label: 'SETTIMANA' },
-      { key: '[SPACE]', label: 'DIARIO' },
-      { key: '[ESC]', label: 'MENU' },
+      { key: '←→', label: $t('hint.week') },
+      { key: '[SPACE]', label: $t('hint.diary') },
+      { key: '[ESC]', label: $t('hint.menu') },
     ],
     statistiche: [
-      { key: '[ESC]', label: 'MENU' },
+      { key: '[ESC]', label: $t('hint.menu') },
     ],
     login: [
-      { key: '[ENTER]', label: 'CONFERMA' },
-      { key: '[TAB]', label: 'CAMPO' },
+      { key: '[ENTER]', label: $t('hint.confirm') },
+      { key: '[TAB]', label: $t('hint.field') },
     ],
     default: [
-      { key: '[ESC]', label: 'MENU' },
+      { key: '[ESC]', label: $t('hint.menu') },
     ],
   };
 
@@ -133,7 +134,7 @@
   {#if authLoading}
     <!-- Loading state while checking auth -->
     <div class="loading-screen">
-      <div class="loading-text">INIZIALIZZAZIONE SISTEMA...</div>
+      <div class="loading-text">{$t('app.loading')}</div>
       <div class="loading-bar">
         <div class="loading-progress"></div>
       </div>

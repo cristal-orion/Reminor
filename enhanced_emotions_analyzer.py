@@ -188,7 +188,8 @@ class EnhancedEmotionsAnalyzer:
         text_content: str,
         api_key: Optional[str] = None,
         provider: str = "groq",
-        model: Optional[str] = None
+        model: Optional[str] = None,
+        language: str = "it",
     ) -> Dict:
         """
         Analisi completa di una voce del diario usando LiteLLM.
@@ -208,7 +209,7 @@ class EnhancedEmotionsAnalyzer:
             return {
                 **self._get_empty_analysis(),
                 "error": True,
-                "message": "LiteLLM non disponibile"
+                "message": "LiteLLM not available" if language == "en" else "LiteLLM non disponibile"
             }
 
         # Check API key
@@ -216,7 +217,7 @@ class EnhancedEmotionsAnalyzer:
             return {
                 **self._get_empty_analysis(),
                 "error": True,
-                "message": "Per l'analisi delle emozioni, configura una API key nelle impostazioni."
+                "message": "To analyze emotions, configure an API key in settings." if language == "en" else "Per l'analisi delle emozioni, configura una API key nelle impostazioni."
             }
 
         # Cache check
@@ -304,24 +305,27 @@ class EnhancedEmotionsAnalyzer:
 
         except litellm.AuthenticationError as e:
             print(f"Errore autenticazione API: {e}")
+            msg = f"Invalid API key for {provider}" if language == "en" else f"API key non valida per {provider}"
             return {
                 **self._get_empty_analysis(),
                 "error": True,
-                "message": f"API key non valida per {provider}"
+                "message": msg
             }
         except litellm.RateLimitError as e:
             print(f"Rate limit raggiunto: {e}")
+            msg = f"Rate limit reached for {provider}. Try again shortly." if language == "en" else f"Rate limit raggiunto per {provider}. Riprova tra poco."
             return {
                 **self._get_empty_analysis(),
                 "error": True,
-                "message": f"Rate limit raggiunto per {provider}. Riprova tra poco."
+                "message": msg
             }
         except Exception as e:
             print(f"Errore analisi completa: {e}")
+            msg = f"Error during analysis: {str(e)}" if language == "en" else f"Errore durante l'analisi: {str(e)}"
             return {
                 **self._get_empty_analysis(),
                 "error": True,
-                "message": f"Errore durante l'analisi: {str(e)}"
+                "message": msg
             }
 
     def _build_analysis_prompt(self, text_content: str) -> str:

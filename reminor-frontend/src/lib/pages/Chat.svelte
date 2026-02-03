@@ -2,6 +2,7 @@
   import { onMount, onDestroy } from 'svelte';
   import { currentUser, chatMessages, isLoading } from '../stores.js';
   import { sendChatMessage, clearChatHistory } from '../api.js';
+  import { t } from '../i18n.js';
 
   let inputText = '';
   let messagesContainer;
@@ -11,7 +12,7 @@
     chatMessages.set([
       {
         role: 'ai',
-        content: 'Ciao! Sono il tuo assistente personale. Posso aiutarti a esplorare i tuoi pensieri, cercare nei tuoi diari o semplicemente conversare. Come posso aiutarti oggi?'
+        content: $t('chat.welcome')
       }
     ]);
   }
@@ -29,7 +30,7 @@
       const response = await sendChatMessage(userMessage);
       chatMessages.update(msgs => [...msgs, { role: 'ai', content: response.response }]);
     } catch (e) {
-      const errorMsg = e.message || 'Errore sconosciuto';
+      const errorMsg = e.message || $t('chat.unknown_error');
       chatMessages.update(msgs => [...msgs, {
         role: 'ai',
         content: errorMsg,
@@ -91,7 +92,7 @@
             <span class="dot">○</span> SYSTEM_AI
           </div>
           <div class="message-content">
-            <p class="loading">Elaborazione in corso...</p>
+            <p class="loading">{$t('chat.processing')}</p>
           </div>
         </div>
       {/if}
@@ -106,14 +107,14 @@
           <textarea
             bind:value={inputText}
             on:keydown={handleKeydown}
-            placeholder="Digita un comando o una domanda..."
+            placeholder={$t('chat.placeholder')}
             spellcheck="false"
             rows="1"
           ></textarea>
         </div>
       </div>
       <button class="send-btn" on:click={sendMessage} disabled={$isLoading}>
-        INVIA <span class="arrow">→</span>
+        {$t('chat.send')} <span class="arrow">→</span>
       </button>
     </div>
   </div>

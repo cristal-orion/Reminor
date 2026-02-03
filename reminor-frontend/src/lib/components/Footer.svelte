@@ -1,14 +1,17 @@
 <script>
+  import { t } from '../i18n.js';
+
   export let hints = [
-    { key: '↕', label: 'NAVIGA' },
-    { key: '[ENTER]', label: 'SELEZIONA' },
-    { key: '[ESC]', label: 'ESCI' },
+    { key: '↕', label: 'NAVIGATE' },
+    { key: '[ENTER]', label: 'SELECT' },
+    { key: '[ESC]', label: 'EXIT' },
   ];
 
   let time = new Date().toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 
   setInterval(() => {
-    time = new Date().toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    const loc = localStorage.getItem('reminor_language') === 'en' ? 'en-US' : 'it-IT';
+    time = new Date().toLocaleTimeString(loc, { hour: '2-digit', minute: '2-digit', second: '2-digit' });
   }, 1000);
 
   // Simulated disk usage

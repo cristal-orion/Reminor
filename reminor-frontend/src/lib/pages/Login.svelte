@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import { login, register } from '../auth.js';
   import { currentPage } from '../stores.js';
+  import { locale, t } from '../i18n.js';
 
   let mode = 'login'; // 'login' or 'register'
   let email = '';
@@ -24,7 +25,14 @@
     'AUTHENTICATION REQUIRED',
   ];
 
+  // Language selector
+  let selectedLang = 'it';
+
   onMount(async () => {
+    // Read initial locale
+    const stored = localStorage.getItem('reminor_language');
+    selectedLang = (stored === 'en') ? 'en' : 'it';
+
     // Play boot animation
     for (let i = 0; i < bootSequence.length; i++) {
       await new Promise(r => setTimeout(r, 300));
@@ -36,22 +44,27 @@
     showForm = true;
   });
 
+  function setLanguage(lang) {
+    selectedLang = lang;
+    locale.set(lang);
+  }
+
   async function handleSubmit() {
     error = '';
 
     // Validation
     if (!email || !password) {
-      error = 'Email e password richiesti';
+      error = $t('login.error_required');
       return;
     }
 
     if (mode === 'register') {
       if (password !== confirmPassword) {
-        error = 'Le password non coincidono';
+        error = $t('login.error_mismatch');
         return;
       }
       if (password.length < 8) {
-        error = 'Password minimo 8 caratteri';
+        error = $t('login.error_min_length');
         return;
       }
     }
@@ -67,7 +80,7 @@
       // Success - redirect to home
       currentPage.set('home');
     } catch (e) {
-      error = e.message || 'Errore di autenticazione';
+      error = e.message || $t('login.error_generic');
     } finally {
       loading = false;
     }
@@ -103,10 +116,25 @@
     <div class="login-form" class:visible={showForm}>
       <div class="form-header">
         <div class="title">
-          {mode === 'login' ? 'ACCESSO SISTEMA' : 'REGISTRAZIONE NUOVO UTENTE'}
+          {mode === 'login' ? $t('login.system_access') : $t('login.new_user_registration')}
         </div>
         <div class="subtitle">
-          {mode === 'login' ? 'Inserisci le credenziali' : 'Crea un nuovo account'}
+          {mode === 'login' ? $t('login.enter_credentials') : $t('login.create_account')}
+        </div>
+      </div>
+
+      <!-- Language selector -->
+      <div class="lang-selector">
+        <span class="lang-label">{$t('login.language')}</span>
+        <div class="lang-buttons">
+          <button
+            class="lang-btn {selectedLang === 'it' ? 'active' : ''}"
+            on:click={() => setLanguage('it')}
+          >IT</button>
+          <button
+            class="lang-btn {selectedLang === 'en' ? 'active' : ''}"
+            on:click={() => setLanguage('en')}
+          >EN</button>
         </div>
       </div>
 
@@ -120,12 +148,12 @@
       <div class="form-fields">
         {#if mode === 'register'}
           <div class="field">
-            <label for="name">NOME (OPZIONALE)</label>
+            <label for="name">{$t('login.name_optional')}</label>
             <input
               type="text"
               id="name"
               bind:value={name}
-              placeholder="Il tuo nome"
+              placeholder={$t('login.name_placeholder')}
               disabled={loading}
               on:keydown={handleKeydown}
             />
@@ -133,7 +161,7 @@
         {/if}
 
         <div class="field">
-          <label for="email">EMAIL</label>
+          <label for="email">{$t('login.email')}</label>
           <input
             type="email"
             id="email"
@@ -146,7 +174,7 @@
         </div>
 
         <div class="field">
-          <label for="password">PASSWORD</label>
+          <label for="password">{$t('login.password')}</label>
           <input
             type="password"
             id="password"
@@ -160,7 +188,7 @@
 
         {#if mode === 'register'}
           <div class="field">
-            <label for="confirmPassword">CONFERMA PASSWORD</label>
+            <label for="confirmPassword">{$t('login.confirm_password')}</label>
             <input
               type="password"
               id="confirmPassword"
@@ -181,9 +209,9 @@
           disabled={loading}
         >
           {#if loading}
-            <span class="loading-dots">ELABORAZIONE</span>
+            <span class="loading-dots">{$t('login.processing')}</span>
           {:else}
-            {mode === 'login' ? '[ACCEDI]' : '[REGISTRATI]'}
+            {mode === 'login' ? $t('login.submit_login') : $t('login.submit_register')}
           {/if}
         </button>
 
@@ -192,14 +220,14 @@
           on:click={toggleMode}
           disabled={loading}
         >
-          {mode === 'login' ? 'Nuovo utente? Registrati' : 'Hai un account? Accedi'}
+          {mode === 'login' ? $t('login.toggle_to_register') : $t('login.toggle_to_login')}
         </button>
       </div>
 
       <div class="form-footer">
         <div class="security-notice">
           <span class="lock-icon">[*]</span>
-          CONNESSIONE SICURA - CRITTOGRAFIA ATTIVA
+          {$t('login.security_notice')}
         </div>
       </div>
     </div>
@@ -294,6 +322,55 @@
     font-size: 10px;
     opacity: 0.6;
     letter-spacing: 0.05em;
+  }
+
+  /* Language selector */
+  .lang-selector {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 20px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+  }
+
+  .lang-label {
+    font-size: 10px;
+    font-weight: bold;
+    letter-spacing: 0.1em;
+    opacity: 0.7;
+  }
+
+  .lang-buttons {
+    display: flex;
+    gap: 0;
+  }
+
+  .lang-btn {
+    background: transparent;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    color: rgba(255, 255, 255, 0.6);
+    font-family: inherit;
+    font-size: 11px;
+    font-weight: bold;
+    letter-spacing: 0.1em;
+    padding: 5px 14px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .lang-btn:first-child {
+    border-right: none;
+  }
+
+  .lang-btn.active {
+    background: white;
+    color: black;
+    border-color: white;
+  }
+
+  .lang-btn:hover:not(.active) {
+    border-color: rgba(255, 255, 255, 0.6);
+    color: white;
   }
 
   .error-box {

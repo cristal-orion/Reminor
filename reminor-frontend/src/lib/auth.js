@@ -4,6 +4,7 @@
  */
 
 import { currentUser, authToken, isAuthenticated, currentPage, entriesCache, diaryCache, statsCache, chatMessages } from './stores.js';
+import { locale } from './i18n.js';
 
 // API configuration
 const isDev = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
@@ -89,12 +90,15 @@ function isTokenExpired(token) {
  * @returns {Promise<object>} - Token response
  */
 export async function register(email, password, name = null) {
+  // Read current language from localStorage
+  const language = localStorage.getItem('reminor_language') || 'it';
+
   const response = await fetch(`${API_BASE}/auth/register`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ email, password, name }),
+    body: JSON.stringify({ email, password, name, language }),
   });
 
   if (!response.ok) {
@@ -229,6 +233,11 @@ export async function loadCurrentUser() {
     saveUser(user);
     currentUser.set(user);
     isAuthenticated.set(true);
+
+    // Sync locale from user profile
+    if (user.language && (user.language === 'it' || user.language === 'en')) {
+      locale.set(user.language);
+    }
 
     return user;
   } catch (error) {

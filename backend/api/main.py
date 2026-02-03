@@ -32,6 +32,7 @@ from core.memory import MemoryManager
 from core.chat import ChatService
 from core.emotions import EmotionsAnalyzer
 from core.auth import get_current_user, get_user_llm_config, CurrentUser
+from core.i18n import t
 from models.schemas import (
     JournalEntry,
     JournalEntryCreate,
@@ -286,7 +287,8 @@ async def analyze_entry(
         content,
         api_key=api_key,
         provider=provider,
-        model=model
+        model=model,
+        language=current_user.language,
     )
     emotions = analysis.get("emotions", {})
 
@@ -447,6 +449,7 @@ async def chat(
             provider=provider,
             model=model,
             user_api_key=api_key,
+            language=current_user.language,
         )
 
         if result.get("error"):
@@ -581,7 +584,8 @@ async def get_stats(
         writing_trend = 100.0  # 100% increase from zero
 
     # Get AI Summary from Knowledge Base for "System Profile"
-    ai_summary_text = "ANALISI SISTEMA IN CORSO..."
+    lang = current_user.language
+    ai_summary_text = t("stats.analysis_in_progress", lang)
     try:
         # Knowledge is loaded via KnowledgeExtractor usually
         # We'll check the file directly
@@ -595,20 +599,12 @@ async def get_stats(
                 if summary:
                     ai_summary_text = summary
                 else:
-                    ai_summary_text = "NESSUN DATO PROFILO DISPONIBILE."
+                    ai_summary_text = t("stats.no_profile_data", lang)
         else:
-            # Try to trigger extraction in background if file missing?
-            # For now just inform user.
-            ai_summary_text = (
-                "ANALISI SISTEMA NON DISPONIBILE. ATTENDERE ELABORAZIONE DATI."
-            )
-
-            # Optional: Trigger extraction if we have enough entries?
-            # This might be slow for a GET request, so better leave it to a specific trigger
-            # or background task.
+            ai_summary_text = t("stats.analysis_unavailable", lang)
     except Exception as e:
         print(f"Error loading summary for stats: {e}")
-        ai_summary_text = "ERRORE LETTURA SISTEMA."
+        ai_summary_text = t("stats.read_error", lang)
 
     return StatsResponse(
         stats=JournalStats(

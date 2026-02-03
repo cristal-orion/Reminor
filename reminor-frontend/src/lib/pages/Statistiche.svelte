@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import { currentUser } from '../stores.js';
   import { getStats, triggerKnowledgeAnalysis } from '../api.js';
+  import { t, locale, getEmotionDisplayName } from '../i18n.js';
 
   let isLoading = true;
   let stats = {
@@ -43,7 +44,7 @@
             aiSummary = data.ai_summary;
         } else {
             // Trigger analysis if not available
-            aiSummary = "ANALISI SISTEMA NON DISPONIBILE. ELABORAZIONE IN CORSO...";
+            aiSummary = null; // Will use $t('stats.analysis_unavailable') in template
             try {
                 // Trigger background analysis silently
                 // We don't await this to keep UI responsive
@@ -117,19 +118,19 @@
           const em = data.stats.emotion_averages;
           // Map to array for bar chart
           const rawMoods = [
-            { label: 'FELICE', value: em.felice || 0 },
-            { label: 'SERENO', value: em.sereno || 0 },
-            { label: 'MOTIVATO', value: em.motivato || 0 },
-            { label: 'GRATO', value: em.grato || 0 },
-            { label: 'ANSIOSO', value: em.ansioso || 0 },
-            { label: 'STRESS', value: em.stressato || 0 }
+            { name: 'felice', value: em.felice || 0 },
+            { name: 'sereno', value: em.sereno || 0 },
+            { name: 'motivato', value: em.motivato || 0 },
+            { name: 'grato', value: em.grato || 0 },
+            { name: 'ansioso', value: em.ansioso || 0 },
+            { name: 'stressato', value: em.stressato || 0 }
           ];
           
           // Sort by value to find dominant
           rawMoods.sort((a, b) => b.value - a.value);
           
           if (rawMoods[0].value > 0) {
-            dominantMood = rawMoods[0].label;
+            dominantMood = rawMoods[0].name;
             dominantPercentage = Math.round(rawMoods[0].value * 100);
           }
 
@@ -145,7 +146,8 @@
   }
 
   function formatNumber(num) {
-    return num.toLocaleString('it-IT');
+    const loc = $locale === 'en' ? 'en-US' : 'it-IT';
+    return num.toLocaleString(loc);
   }
 
   onMount(() => {
@@ -156,8 +158,8 @@
 <div class="stats-page">
   <div class="page-header">
     <div class="header-content">
-      <div class="header-line">--- STATISTICHE PERSONALI ---</div>
-      <div class="header-sub">SISTEMA OPERATIVO DIARIO DI BORDO // USER: ADMIN</div>
+      <div class="header-line">{$t('stats.title')}</div>
+      <div class="header-sub">{$t('stats.subtitle')}</div>
     </div>
   </div>
 
@@ -168,7 +170,7 @@
       <div class="card-top">
         <div class="card-icon-title">
           <span class="pixel-icon">grid_view</span>
-          <span class="card-title">DENSITÀ MEMORIA</span>
+          <span class="card-title">{$t('stats.density')}</span>
         </div>
         <span class="card-id">0x01</span>
       </div>
@@ -183,15 +185,15 @@
 
       <div class="card-bottom">
         <div class="row-between">
-            <div class="bottom-label">ULTIMI 84 GIORNI</div>
+            <div class="bottom-label">{$t('stats.last_days')}</div>
             <div class="density-legend">
-                <span>MENO</span>
+                <span>{$t('stats.less')}</span>
                 <div class="legend-scale">
                     <div class="density-block intensity-0"></div>
                     <div class="density-block intensity-2"></div>
                     <div class="density-block intensity-4"></div>
                 </div>
-                <span>PIÙ</span>
+                <span>{$t('stats.more')}</span>
             </div>
         </div>
       </div>
@@ -202,13 +204,13 @@
       <div class="card-top">
         <div class="card-icon-title">
           <span class="pixel-icon">edit</span>
-          <span class="card-title">SCRITTURA</span>
+          <span class="card-title">{$t('stats.writing')}</span>
         </div>
         <span class="card-id">0x02</span>
       </div>
 
       <div class="card-main">
-        <div class="mid-label">VOLUME TOTALE</div>
+        <div class="mid-label">{$t('stats.total_volume')}</div>
         <div class="big-number-row">
           <span class="giant-number">{formatNumber(stats.totalWords)}</span>
           <span class="unit">WORDS</span>
@@ -217,11 +219,11 @@
 
       <div class="card-bottom row-between">
         <div class="metric-col">
-          <div class="bottom-label">MEDIA GIORNALIERA</div>
+          <div class="bottom-label">{$t('stats.daily_average')}</div>
           <div class="metric-value">+{formatNumber(stats.avgWords)} <span class="dim">AVG</span></div>
         </div>
         <div class="metric-col right">
-          <div class="bottom-label">TREND</div>
+          <div class="bottom-label">{$t('stats.trend')}</div>
           <div class="metric-value {isPositiveTrend ? 'green' : 'red'}">
             {isPositiveTrend ? '▲' : '▼'} {writingTrend}%
           </div>
@@ -234,14 +236,14 @@
       <div class="card-top">
         <div class="card-icon-title">
           <span class="pixel-icon">sentiment_satisfied</span>
-          <span class="card-title">MOOD PREVALENTE</span>
+          <span class="card-title">{$t('stats.dominant_mood')}</span>
         </div>
         <span class="card-id">0x03</span>
       </div>
 
       <div class="card-main">
-        <div class="giant-text">{dominantMood}</div>
-        <div class="sub-text">RILEVATO NEL {dominantPercentage}% DEI TESTI</div>
+        <div class="giant-text">{getEmotionDisplayName(dominantMood, $locale)}</div>
+        <div class="sub-text">{$t('stats.detected_in')} {dominantPercentage}% {$t('stats.of_texts')}</div>
       </div>
 
       <div class="card-bottom no-pad">
@@ -260,17 +262,17 @@
       <div class="card-top">
         <div class="card-icon-title">
           <span class="pixel-icon">terminal</span>
-          <span class="card-title">PROFILO SISTEMA</span>
+          <span class="card-title">{$t('stats.system_profile')}</span>
         </div>
         <span class="card-id">0x04</span>
       </div>
 
       <div class="card-terminal">
         <div class="terminal-content">
-          > SYSTEM_ANALYSIS_INIT<br>
-          > READING_USER_PATTERN...<br>
+          > {$t('stats.system_init')}<br>
+          > {$t('stats.reading_pattern')}<br>
           <br>
-          <span class="terminal-text">{aiSummary}</span>
+          <span class="terminal-text">{aiSummary || $t('stats.analysis_unavailable')}</span>
           <span class="cursor">_</span>
         </div>
       </div>

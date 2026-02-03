@@ -11,6 +11,7 @@ from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Any
 
 from .memory import MemoryManager
+from .i18n import t, get_list
 
 # Disable LiteLLM telemetry
 litellm.telemetry = False
@@ -94,13 +95,17 @@ class ChatService:
         else:
             return model
 
-    def parse_italian_date_query(self, query: str) -> List[str]:
-        """Extract and convert Italian dates to ISO format"""
+    def parse_date_query(self, query: str, language: str = "it") -> List[str]:
+        """Extract and convert dates from query text to ISO format.
+
+        Supports both Italian and English date patterns.
+        """
         dates = []
         current_year = datetime.now().year
+        query_lower = query.lower()
 
         # Italian month patterns
-        patterns = [
+        it_patterns = [
             (r'(\d{1,2})\s+gennaio', 1),
             (r'(\d{1,2})\s+febbraio', 2),
             (r'(\d{1,2})\s+marzo', 3),
@@ -115,38 +120,83 @@ class ChatService:
             (r'(\d{1,2})\s+dicembre', 12),
         ]
 
-        for pattern, month in patterns:
-            matches = re.findall(pattern, query.lower())
+        # English month patterns
+        en_patterns = [
+            (r'(\d{1,2})\s+january', 1), (r'january\s+(\d{1,2})', 1),
+            (r'(\d{1,2})\s+february', 2), (r'february\s+(\d{1,2})', 2),
+            (r'(\d{1,2})\s+march', 3), (r'march\s+(\d{1,2})', 3),
+            (r'(\d{1,2})\s+april', 4), (r'april\s+(\d{1,2})', 4),
+            (r'(\d{1,2})\s+may', 5), (r'may\s+(\d{1,2})', 5),
+            (r'(\d{1,2})\s+june', 6), (r'june\s+(\d{1,2})', 6),
+            (r'(\d{1,2})\s+july', 7), (r'july\s+(\d{1,2})', 7),
+            (r'(\d{1,2})\s+august', 8), (r'august\s+(\d{1,2})', 8),
+            (r'(\d{1,2})\s+september', 9), (r'september\s+(\d{1,2})', 9),
+            (r'(\d{1,2})\s+october', 10), (r'october\s+(\d{1,2})', 10),
+            (r'(\d{1,2})\s+november', 11), (r'november\s+(\d{1,2})', 11),
+            (r'(\d{1,2})\s+december', 12), (r'december\s+(\d{1,2})', 12),
+        ]
+
+        # Always try both Italian and English patterns (diary may be in either language)
+        all_patterns = it_patterns + en_patterns
+
+        for pattern, month in all_patterns:
+            matches = re.findall(pattern, query_lower)
             for day in matches:
                 try:
                     date_str = f"{current_year}-{month:02d}-{int(day):02d}"
-                    dates.append(date_str)
+                    if date_str not in dates:
+                        dates.append(date_str)
                 except ValueError:
                     continue
 
-        # "il X" pattern (assumes current month)
-        il_pattern = re.findall(r'\bil\s+(\d{1,2})\b', query.lower())
+        # "il X" pattern - Italian (assumes current month)
+        il_pattern = re.findall(r'\bil\s+(\d{1,2})\b', query_lower)
         current_month = datetime.now().month
         for day in il_pattern:
             try:
                 date_str = f"{current_year}-{current_month:02d}-{int(day):02d}"
-                dates.append(date_str)
+                if date_str not in dates:
+                    dates.append(date_str)
             except ValueError:
                 continue
 
-        # Relative dates
-        if 'ieri' in query.lower():
+        # "the Xth/Xst/Xnd/Xrd" pattern - English (assumes current month)
+        the_pattern = re.findall(r'\bthe\s+(\d{1,2})(?:st|nd|rd|th)?\b', query_lower)
+        for day in the_pattern:
+            try:
+                date_str = f"{current_year}-{current_month:02d}-{int(day):02d}"
+                if date_str not in dates:
+                    dates.append(date_str)
+            except ValueError:
+                continue
+
+        # Relative dates - Italian
+        if 'ieri' in query_lower:
             yesterday = datetime.now() - timedelta(days=1)
             dates.append(yesterday.strftime("%Y-%m-%d"))
 
-        if any(word in query.lower() for word in ['oggi', 'stamattina', 'stasera']):
+        if any(word in query_lower for word in ['oggi', 'stamattina', 'stasera']):
             today = datetime.now()
             dates.append(today.strftime("%Y-%m-%d"))
+
+        # Relative dates - English
+        if 'yesterday' in query_lower:
+            yesterday = datetime.now() - timedelta(days=1)
+            d = yesterday.strftime("%Y-%m-%d")
+            if d not in dates:
+                dates.append(d)
+
+        if any(word in query_lower for word in ['today', 'this morning', 'tonight']):
+            today = datetime.now()
+            d = today.strftime("%Y-%m-%d")
+            if d not in dates:
+                dates.append(d)
 
         return dates
 
     def get_intelligent_context(self, user_id: str, query: str,
-                                 num_entries: int = 20) -> str:
+                                 num_entries: int = 20,
+                                 language: str = "it") -> str:
         """
         Get intelligent context based on user query.
 
@@ -154,6 +204,7 @@ class ChatService:
             user_id: User ID
             query: User's query
             num_entries: Max entries to include
+            language: User language for labels
 
         Returns:
             Formatted context string
@@ -162,7 +213,7 @@ class ChatService:
         context_parts = []
 
         # 1. Look for specific dates in query
-        target_dates = self.parse_italian_date_query(query)
+        target_dates = self.parse_date_query(query, language)
 
         if target_dates:
             for date in target_dates:
@@ -174,14 +225,16 @@ class ChatService:
         similarity_context = memory.get_rich_context(query=query, num_entries=num_entries)
 
         if similarity_context:
+            related_label = t("chat.related_entries", language)
             if context_parts:
-                context_parts.append("=== Voci correlate ===\n" + similarity_context)
+                context_parts.append(f"=== {related_label} ===\n" + similarity_context)
             else:
                 context_parts.append(similarity_context)
 
         return "\n".join(context_parts) if context_parts else similarity_context
 
-    def get_system_prompt(self, user_name: str, context: str, knowledge: str = "") -> str:
+    def get_system_prompt(self, user_name: str, context: str,
+                          knowledge: str = "", language: str = "it") -> str:
         """
         Generate system prompt for the AI.
 
@@ -189,31 +242,42 @@ class ChatService:
             user_name: User's name
             context: Journal context (from semantic search)
             knowledge: Knowledge base (persistent info about user)
+            language: User language ("it" or "en")
 
         Returns:
             System prompt string
         """
         now = datetime.now()
-        giorni_settimana = ['Lunedì', 'Martedì', 'Mercoledì', 'Giovedì',
-                           'Venerdì', 'Sabato', 'Domenica']
-        mesi = ['', 'gennaio', 'febbraio', 'marzo', 'aprile', 'maggio',
-                'giugno', 'luglio', 'agosto', 'settembre', 'ottobre',
-                'novembre', 'dicembre']
+        weekdays = get_list("date.weekdays", language)
+        months = get_list("date.months", language)
 
-        giorno_settimana = giorni_settimana[now.weekday()]
-        data_oggi = f"{giorno_settimana} {now.day} {mesi[now.month]} {now.year}"
+        weekday_name = weekdays[now.weekday()]
+
+        if language == "en":
+            data_oggi = f"{weekday_name}, {months[now.month]} {now.day}, {now.year}"
+        else:
+            data_oggi = f"{weekday_name} {now.day} {months[now.month]} {now.year}"
+
         ora_attuale = now.strftime("%H:%M")
         data_iso = now.strftime("%Y-%m-%d")
 
-        # Try to load from file
-        prompt_file = self.prompts_dir / "system_prompt.txt"
+        default_user = t("prompt.default_user", language)
+        no_knowledge = t("prompt.no_knowledge", language)
+
+        # Select prompt file based on language
+        if language == "en":
+            prompt_file = self.prompts_dir / "system_prompt_en.txt"
+            if not prompt_file.exists():
+                prompt_file = self.prompts_dir / "system_prompt.txt"
+        else:
+            prompt_file = self.prompts_dir / "system_prompt.txt"
 
         variables = {
-            'user_name': user_name or "l'utente",
+            'user_name': user_name or default_user,
             'data_oggi': data_oggi,
             'ora_attuale': ora_attuale,
             'data_iso': data_iso,
-            'knowledge': knowledge or "Nessuna knowledge base disponibile.",
+            'knowledge': knowledge or no_knowledge,
             'context': context
         }
 
@@ -227,10 +291,36 @@ class ChatService:
             print(f"Error loading prompt file: {e}")
 
         # Fallback prompt
-        return self._get_fallback_prompt(variables)
+        return self._get_fallback_prompt(variables, language)
 
-    def _get_fallback_prompt(self, variables: dict) -> str:
+    def _get_fallback_prompt(self, variables: dict, language: str = "it") -> str:
         """Fallback system prompt"""
+        if language == "en":
+            return f"""# WHO YOU ARE
+
+You are Reminor's AI, the digital companion who has read the user's diary.
+
+# INFORMATION
+- **Username**: {variables['user_name']}
+- **Today is**: {variables['data_oggi']}
+- **Current time**: {variables['ora_attuale']}
+
+# KNOWLEDGE BASE (Permanent information about the user)
+{variables['knowledge']}
+
+# DIARY CONTEXT (Search results for this question)
+{variables['context']}
+
+# HOW YOU SPEAK
+- Speak like a friend who knows the user's story
+- Use specific references from the diary and knowledge base
+- Brief and direct (2-3 sentences)
+- Always respond in English
+
+# ANTI-HALLUCINATION RULES
+- IF YOU DON'T HAVE INFORMATION FROM THE DIARY, SAY SO CLEARLY
+- NEVER INVENT dates, names, places or events
+"""
         return f"""# CHI SEI
 
 Sei l'AI di Reminor, il compagno digitale che ha letto il diario dell'utente.
@@ -281,7 +371,8 @@ Sei l'AI di Reminor, il compagno digitale che ha letto il diario dell'utente.
                    user_api_key: Optional[str] = None,
                    provider: str = "groq",
                    model: Optional[str] = None,
-                   include_context: bool = True) -> Dict[str, Any]:
+                   include_context: bool = True,
+                   language: str = "it") -> Dict[str, Any]:
         """
         Send a chat message and get a response using LiteLLM.
 
@@ -293,6 +384,7 @@ Sei l'AI di Reminor, il compagno digitale che ha letto il diario dell'utente.
             provider: LLM provider (groq, openai, anthropic, gemini, mistral, deepseek)
             model: Optional model name (uses default for provider if not specified)
             include_context: Whether to include journal context
+            language: User language for prompts and error messages
 
         Returns:
             Dict with response and metadata
@@ -305,7 +397,7 @@ Sei l'AI di Reminor, il compagno digitale che ha letto il diario dell'utente.
 
         if not api_key:
             return {
-                "response": f"Errore: API key non configurata per {provider}",
+                "response": t("chat.api_key_missing", language, provider=provider),
                 "error": True
             }
 
@@ -316,7 +408,7 @@ Sei l'AI di Reminor, il compagno digitale che ha letto il diario dell'utente.
         context = ""
         knowledge = ""
         if include_context:
-            context = self.get_intelligent_context(user_id, message)
+            context = self.get_intelligent_context(user_id, message, language=language)
             knowledge = self.memory_manager.get_user_knowledge(user_id)
 
         # Use knowledge base name as fallback if user_name not provided
@@ -325,7 +417,7 @@ Sei l'AI di Reminor, il compagno digitale che ha letto il diario dell'utente.
             effective_user_name = self.memory_manager.get_user_name_from_knowledge(user_id)
 
         # Build messages
-        system_prompt = self.get_system_prompt(effective_user_name, context, knowledge)
+        system_prompt = self.get_system_prompt(effective_user_name, context, knowledge, language)
 
         messages = [{"role": "system", "content": system_prompt}]
         messages.extend(self.get_conversation(user_id))
@@ -357,38 +449,38 @@ Sei l'AI di Reminor, il compagno digitale che ha letto il diario dell'utente.
 
         except litellm.AuthenticationError as e:
             return {
-                "response": f"API key non valida per {provider}. Vai nelle Impostazioni per aggiornare la chiave.",
+                "response": t("chat.api_key_invalid", language, provider=provider),
                 "error": True
             }
         except litellm.BadRequestError as e:
             error_msg = str(e).lower()
             if "api key" in error_msg or "api_key" in error_msg or "invalid" in error_msg:
                 return {
-                    "response": f"API key non valida o scaduta per {provider}. Vai nelle Impostazioni per configurare una nuova chiave.",
+                    "response": t("chat.api_key_expired", language, provider=provider),
                     "error": True
                 }
             return {
-                "response": f"Errore nella richiesta a {provider}: {str(e)}",
+                "response": t("chat.request_error", language, provider=provider, error=str(e)),
                 "error": True
             }
         except litellm.RateLimitError as e:
             return {
-                "response": f"Rate limit raggiunto per {provider}. Riprova tra poco.",
+                "response": t("chat.rate_limit", language, provider=provider),
                 "error": True
             }
         except litellm.APIConnectionError as e:
             return {
-                "response": f"Errore di connessione a {provider}: {str(e)}",
+                "response": t("chat.connection_error", language, provider=provider, error=str(e)),
                 "error": True
             }
         except Exception as e:
             error_msg = str(e).lower()
             if "api key" in error_msg or "api_key" in error_msg or "invalid api" in error_msg:
                 return {
-                    "response": f"API key non valida per {provider}. Vai nelle Impostazioni per aggiornare la chiave.",
+                    "response": t("chat.api_key_invalid", language, provider=provider),
                     "error": True
                 }
             return {
-                "response": f"Errore: {str(e)}",
+                "response": t("chat.generic_error", language, error=str(e)),
                 "error": True
             }

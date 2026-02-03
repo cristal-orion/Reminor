@@ -3,15 +3,16 @@
   import { get } from 'svelte/store';
   import { currentUser, currentPage, selectedDate, entriesCache } from '../stores.js';
   import { getEntries } from '../api.js';
+  import { t, locale } from '../i18n.js';
 
   let currentMonth = new Date();
   let days = [];
   let entries = {};
   let isLoading = false;
 
-  $: monthName = currentMonth.toLocaleDateString('it-IT', { month: 'long', year: 'numeric' }).toUpperCase();
+  $: monthName = currentMonth.toLocaleDateString($locale === 'en' ? 'en-US' : 'it-IT', { month: 'long', year: 'numeric' }).toUpperCase();
 
-  const weekDays = ['LUN', 'MAR', 'MER', 'GIO', 'VEN', 'SAB', 'DOM'];
+  $: weekDays = $t('calendar.weekdays');
 
   function generateCalendar() {
     const year = currentMonth.getFullYear();
@@ -125,16 +126,16 @@
   <div class="page-header">
     <div class="title-row">
       <span class="icon">calendar_month</span>
-      <h1 class="title">CALENDARIO</h1>
+      <h1 class="title">{$t('calendar.title')}</h1>
     </div>
 
     <div class="month-nav">
       <button class="nav-btn" on:click={prevMonth}>
-        <span class="arrow">◀</span> PREV
+        <span class="arrow">◀</span> {$t('calendar.prev')}
       </button>
       <span class="month-name">{monthName}</span>
       <button class="nav-btn" on:click={nextMonth}>
-        NEXT <span class="arrow">▶</span>
+        {$t('calendar.next')} <span class="arrow">▶</span>
       </button>
     </div>
   </div>

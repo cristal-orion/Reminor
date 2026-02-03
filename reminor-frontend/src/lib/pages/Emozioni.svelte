@@ -1,7 +1,9 @@
 <script>
   import { onMount } from 'svelte';
+  import { get } from 'svelte/store';
   import { currentUser, currentPage } from '../stores.js';
   import { getStats, getWeeklyEmotions } from '../api.js';
+  import { t, locale, getEmotionDisplayName, getEmotionShortName } from '../i18n.js';
 
   let weekDays = [];
   let isLoading = true;
@@ -30,25 +32,15 @@
     'motivato': 'auto_awesome'
   };
 
-  const emotionLabels = {
-    'felice': 'JOY',
-    'triste': 'SAD',
-    'arrabbiato': 'ANGRY',
-    'ansioso': 'ANXIOUS',
-    'sereno': 'NEUTRAL',
-    'stressato': 'STRESSED',
-    'grato': 'GRATEFUL',
-    'motivato': 'INSPIRED'
-  };
 
   // Energy level categories
   function getEnergyInfo(level) {
     if (level < 0.35) {
-      return { label: 'TIRED', icon: 'bedtime' };
+      return { labelKey: 'emotions.tired', icon: 'bedtime' };
     } else if (level < 0.65) {
-      return { label: 'CALM', icon: 'self_improvement' };
+      return { labelKey: 'emotions.calm', icon: 'self_improvement' };
     } else {
-      return { label: 'ENERGY', icon: 'bolt' };
+      return { labelKey: 'emotions.energetic', icon: 'bolt' };
     }
   }
 
@@ -70,7 +62,7 @@
     weekNumber = getWeekNumber(monday);
     weekYear = monday.getFullYear();
 
-    const dayNames = ['LUN', 'MAR', 'MER', 'GIO', 'VEN', 'SAB', 'DOM'];
+    const dayNames = get(t)('emotions.weekdays');
     const days = [];
 
     for (let i = 0; i < 7; i++) {
@@ -147,7 +139,7 @@
               hasData: true,
               dominant,
               dominantIcon: emotionIcons[dominant] || 'sentiment_neutral',
-              dominantLabel: emotionLabels[dominant] || dominant?.toUpperCase(),
+              dominantLabel: dominant,
               emotionIntensity: emotionValue,
               energyLevel,
               energyInfo: getEnergyInfo(energyLevel)
@@ -164,7 +156,7 @@
           const mostCommon = Object.entries(emotionCounts)
             .sort((a, b) => b[1] - a[1])[0];
           if (mostCommon) {
-            stats.dominantMood = emotionLabels[mostCommon[0]] || mostCommon[0].toUpperCase();
+            stats.dominantMood = mostCommon[0];
           }
 
           stats.stabilityIndex = Math.min(100, Math.round(70 + (daysWithEmotions / 7) * 30));
@@ -221,12 +213,12 @@
 <div class="emotions-container">
   <header class="emotions-header">
     <div class="header-left">
-      <h1 class="title">WEEKLY EMOTIONS</h1>
+      <h1 class="title">{$t('emotions.title')}</h1>
       <div class="week-nav">
         <button class="nav-btn" on:click={() => navigateWeek(-1)}>
           <span class="material-symbols-outlined">chevron_left</span>
         </button>
-        <p class="subtitle">WEEK {String(weekNumber).padStart(2, '0')}, {weekYear}</p>
+        <p class="subtitle">{$t('emotions.week')} {String(weekNumber).padStart(2, '0')}, {weekYear}</p>
         <button class="nav-btn" on:click={() => navigateWeek(1)} disabled={weekOffset >= 0}>
           <span class="material-symbols-outlined">chevron_right</span>
         </button>
@@ -235,7 +227,7 @@
     <div class="stability-box">
       <span class="material-symbols-outlined stability-icon">insights</span>
       <div class="stability-content">
-        <span class="stability-label">STABILITY INDEX</span>
+        <span class="stability-label">{$t('emotions.stability')}</span>
         <span class="stability-value">{stats.stabilityIndex.toFixed(1)}%</span>
       </div>
     </div>
@@ -244,7 +236,7 @@
   <div class="week-grid">
     {#if isLoading}
       <div class="loading-state">
-        <span class="loading-text">CARICAMENTO...</span>
+        <span class="loading-text">{$t('emotions.loading')}</span>
       </div>
     {:else}
       {#each weekDays as day}
@@ -258,28 +250,28 @@
               <!-- Emotion block - flex grows based on intensity -->
               <div class="emotion-block" style="flex: {0.3 + day.emotionIntensity}">
                 <span class="material-symbols-outlined emotion-icon">{day.dominantIcon}</span>
-                <span class="emotion-label">{day.dominantLabel}</span>
+                <span class="emotion-label">{getEmotionDisplayName(day.dominantLabel, $locale)}</span>
               </div>
 
               <!-- Energy block - flex grows based on energy level -->
               <div class="energy-block" style="flex: {0.2 + day.energyLevel * 0.5}">
                 <span class="material-symbols-outlined energy-icon">{day.energyInfo.icon}</span>
-                <span class="energy-label">{day.energyInfo.label}</span>
+                <span class="energy-label">{$t(day.energyInfo.labelKey)}</span>
               </div>
             {:else if day.isFuture}
               <div class="empty-state">
                 <span class="material-symbols-outlined empty-icon">add</span>
-                <span class="empty-label">LOG</span>
+                <span class="empty-label">{$t('emotions.log')}</span>
               </div>
             {:else if day.isPast}
               <div class="empty-state">
                 <span class="material-symbols-outlined empty-icon">edit_note</span>
-                <span class="empty-label">PENDING</span>
+                <span class="empty-label">{$t('emotions.pending')}</span>
               </div>
             {:else}
               <button class="empty-state today-btn" on:click={navigateToDiary}>
                 <span class="material-symbols-outlined empty-icon">edit_note</span>
-                <span class="empty-label">LOG NOW</span>
+                <span class="empty-label">{$t('emotions.log_now')}</span>
               </button>
             {/if}
           </div>
@@ -290,20 +282,20 @@
 
   <div class="stats-bar">
     <div class="stat-item">
-      <span class="stat-label">TOTAL ENTRIES</span>
+      <span class="stat-label">{$t('emotions.total_entries')}</span>
       <span class="stat-value">{stats.entriesThisMonth} / {stats.daysInMonth}</span>
     </div>
     <div class="stat-item">
-      <span class="stat-label">DOMINANT MOOD</span>
-      <span class="stat-value">{stats.dominantMood}</span>
+      <span class="stat-label">{$t('emotions.dominant_mood')}</span>
+      <span class="stat-value">{getEmotionDisplayName(stats.dominantMood, $locale)}</span>
     </div>
     <div class="stat-item">
-      <span class="stat-label">AVG INTENSITY</span>
+      <span class="stat-label">{$t('emotions.avg_intensity')}</span>
       <span class="stat-value">{stats.avgIntensity}</span>
     </div>
     <div class="stat-item">
-      <span class="stat-label">STREAK</span>
-      <span class="stat-value">{stats.streak} DAYS</span>
+      <span class="stat-label">{$t('emotions.streak')}</span>
+      <span class="stat-value">{stats.streak} {$t('emotions.days')}</span>
     </div>
   </div>
 

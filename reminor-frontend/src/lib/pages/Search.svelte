@@ -1,6 +1,7 @@
 <script>
   import { currentUser, currentPage, selectedDate } from '../stores.js';
   import { searchEntries } from '../api.js';
+  import { t } from '../i18n.js';
 
   let query = '';
   let results = [];
@@ -41,10 +42,10 @@
     <header class="text-center mb-12">
       <div class="flex items-center justify-center gap-3 mb-4">
         <span class="material-symbols-outlined text-3xl">search</span>
-        <h1 class="text-2xl font-bold tracking-widest">RICERCA SEMANTICA</h1>
+        <h1 class="text-2xl font-bold tracking-widest">{$t('search.title')}</h1>
       </div>
       <p class="text-[12px] opacity-60 tracking-widest uppercase">
-        Cerca nei tuoi pensieri usando il linguaggio naturale
+        {$t('search.subtitle')}
       </p>
     </header>
 
@@ -57,7 +58,7 @@
           bind:value={query}
           on:keydown={handleKeydown}
           class="flex-grow bg-transparent border-none outline-none text-lg"
-          placeholder="Cosa vuoi cercare?"
+          placeholder={$t('search.placeholder')}
           spellcheck="false"
         />
         <button
@@ -65,7 +66,7 @@
           on:click={search}
           disabled={isSearching}
         >
-          {isSearching ? 'CERCO...' : 'CERCA'}
+          {isSearching ? $t('search.searching') : $t('search.button')}
         </button>
       </div>
     </div>
@@ -75,14 +76,14 @@
       <div class="border-t border-white/20 pt-8">
         <div class="flex justify-between items-center mb-6">
           <span class="text-[11px] uppercase tracking-widest opacity-60">
-            RISULTATI: {results.length}
+            {$t('search.results')} {results.length}
           </span>
         </div>
 
         {#if results.length === 0}
           <div class="text-center py-12 opacity-60">
             <span class="material-symbols-outlined text-4xl mb-4 block">search_off</span>
-            <p>Nessun risultato trovato</p>
+            <p>{$t('search.no_results')}</p>
           </div>
         {:else}
           <div class="space-y-4">
@@ -93,7 +94,7 @@
               >
                 <div class="flex justify-between items-start mb-2">
                   <span class="text-[11px] font-bold tracking-widest">{result.date}</span>
-                  <span class="text-[10px] opacity-60">SCORE: {result.score.toFixed(1)}</span>
+                  <span class="text-[10px] opacity-60">{$t('search.score')} {result.score.toFixed(1)}</span>
                 </div>
                 <p class="text-sm opacity-80 line-clamp-2">{result.content}</p>
               </button>

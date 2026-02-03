@@ -1,15 +1,16 @@
 <script>
   import { currentPage, currentUser } from '../stores.js';
   import { logout } from '../auth.js';
+  import { locale, t } from '../i18n.js';
 
-  const navItems = [
-    { id: 'home', label: '[1] DASHBOARD', key: '1' },
-    { id: 'diario', label: '[2] DIARIO', key: '2' },
-    { id: 'calendario', label: '[3] ARCHIVIO', key: '3' },
-    { id: 'chat', label: '[4] CHAT', key: '4' },
-    { id: 'emozioni', label: '[5] EMOZIONI', key: '5' },
-    { id: 'statistiche', label: '[6] STATS', key: '6' },
-    { id: 'settings', label: '[7] SETTINGS', key: '7' },
+  $: navItems = [
+    { id: 'home', label: '[1] ' + $t('header.dashboard'), key: '1' },
+    { id: 'diario', label: '[2] ' + $t('header.diary'), key: '2' },
+    { id: 'calendario', label: '[3] ' + $t('header.archive'), key: '3' },
+    { id: 'chat', label: '[4] ' + $t('header.chat'), key: '4' },
+    { id: 'emozioni', label: '[5] ' + $t('header.emotions'), key: '5' },
+    { id: 'statistiche', label: '[6] ' + $t('header.stats'), key: '6' },
+    { id: 'settings', label: '[7] ' + $t('header.settings'), key: '7' },
   ];
 
   function navigate(pageId) {
@@ -17,20 +18,23 @@
   }
 
   function handleLogout() {
-    if (confirm('Sei sicuro di voler uscire?')) {
+    if (confirm($t('header.logout_confirm'))) {
       logout();
     }
   }
 
-  // Clock
+  // Clock and date - locale aware
+  $: dateLocale = $locale === 'en' ? 'en-US' : 'it-IT';
+
   let time = new Date().toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 
   setInterval(() => {
-    time = new Date().toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    const loc = localStorage.getItem('reminor_language') === 'en' ? 'en-US' : 'it-IT';
+    time = new Date().toLocaleTimeString(loc, { hour: '2-digit', minute: '2-digit', second: '2-digit' });
   }, 1000);
 
   // Date
-  $: dateStr = new Date().toLocaleDateString('it-IT', { day: '2-digit', month: 'short', year: 'numeric' }).toUpperCase();
+  $: dateStr = new Date().toLocaleDateString(dateLocale, { day: '2-digit', month: 'short', year: 'numeric' }).toUpperCase();
 
   // User display name
   $: userName = $currentUser?.name || $currentUser?.email?.split('@')[0] || 'USER';

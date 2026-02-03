@@ -137,7 +137,7 @@ def get_user_by_id(user_id: str) -> Optional[dict]:
     return None
 
 
-def create_user(email: str, password: str, name: Optional[str] = None) -> dict:
+def create_user(email: str, password: str, name: Optional[str] = None, language: str = "it") -> dict:
     """Create a new user."""
     users = get_users_db()
 
@@ -153,6 +153,7 @@ def create_user(email: str, password: str, name: Optional[str] = None) -> dict:
         "email": email.lower(),
         "password_hash": hash_password(password),
         "name": name,
+        "language": language if language in ("it", "en") else "it",
         "created_at": datetime.utcnow().isoformat(),
     }
 
@@ -268,15 +269,28 @@ def save_user_llm_config(user_id: str, provider: str, model: Optional[str] = Non
     save_users_db(users)
 
 
+def update_user_language(user_id: str, language: str) -> bool:
+    """Update the language preference for a user."""
+    if language not in ("it", "en"):
+        return False
+    users = get_users_db()
+    if user_id not in users:
+        return False
+    users[user_id]["language"] = language
+    save_users_db(users)
+    return True
+
+
 # ==================== FASTAPI DEPENDENCIES ====================
 
 
 class CurrentUser:
     """Represents the authenticated current user."""
-    def __init__(self, user_id: str, email: str, name: Optional[str] = None):
+    def __init__(self, user_id: str, email: str, name: Optional[str] = None, language: str = "it"):
         self.id = user_id
         self.email = email
         self.name = name
+        self.language = language
 
 
 async def get_current_user(
@@ -318,7 +332,8 @@ async def get_current_user(
     return CurrentUser(
         user_id=user_id,
         email=email,
-        name=user.get("name")
+        name=user.get("name"),
+        language=user.get("language", "it"),
     )
 
 

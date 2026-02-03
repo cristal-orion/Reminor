@@ -16,6 +16,7 @@ class UserCreate(BaseModel):
     email: EmailStr
     password: str = Field(..., min_length=8)
     name: Optional[str] = None
+    language: Optional[str] = Field("it", pattern=r"^(it|en)$")
 
 
 class UserLogin(BaseModel):
@@ -31,10 +32,17 @@ class UserResponse(BaseModel):
     id: str
     email: EmailStr
     name: Optional[str] = None
+    language: str = "it"
     created_at: datetime
 
     class Config:
         from_attributes = True
+
+
+class LanguageUpdate(BaseModel):
+    """Schema for updating user language preference"""
+
+    language: str = Field(..., pattern=r"^(it|en)$")
 
 
 class TokenResponse(BaseModel):

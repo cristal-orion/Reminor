@@ -1,7 +1,8 @@
 <script>
   import { settings, currentUser } from '../stores.js';
-  import { importDiaryFiles, rebuildMemory, downloadBackupZip, triggerKnowledgeAnalysis, getLLMConfigFromServer, saveLLMConfigToServer, migrateLLMConfigToServer } from '../api.js';
-  import { logout } from '../auth.js';
+  import { t, locale } from '../i18n.js';
+  import { importDiaryFiles, rebuildMemory, downloadBackupZip, triggerKnowledgeAnalysis, getLLMConfigFromServer, saveLLMConfigToServer, migrateLLMConfigToServer, updateLanguage } from '../api.js';
+  import { logout, saveTokens } from '../auth.js';
 
 
   // LLM Providers and Models (LiteLLM format: provider/model)
@@ -92,9 +93,9 @@
       hasStoredKey = result.has_api_key || false;
       apiKeyPreview = result.api_key_preview || '';
       apiKey = '';  // Clear input after save
-      testResult = { success: true, message: 'Configurazione salvata sul server!' };
+      testResult = { success: true, message: $t('settings.saved_success') };
     } catch (e) {
-      testResult = { success: false, message: e.message || 'Errore nel salvataggio' };
+      testResult = { success: false, message: e.message || $t('settings.save_error') };
     } finally {
       isSaving = false;
     }
@@ -115,7 +116,7 @@
   // Save LLM config (modal save button)
   async function saveAndClose() {
     if (!apiKey.trim() && !hasStoredKey) {
-      testResult = { success: false, message: 'Inserisci una API key' };
+      testResult = { success: false, message: $t('settings.enter_api_key') };
       return;
     }
 
@@ -137,18 +138,38 @@
     loadLLMConfig();
   }
 
-  let settingsItems = [
-    { id: 'theme', label: 'Tema', value: 'Notte', icon: 'dark_mode' },
-    { id: 'font', label: 'Font', value: 'JetBrains Mono', icon: 'text_fields' },
-    { id: 'llm', label: 'LLM Provider', value: selectedProvider.toUpperCase(), icon: 'smart_toy', action: () => showLLMModal = true },
-    { id: 'autoSave', label: 'AutoSave', value: 'ON', icon: 'save' },
-    { id: 'help', label: 'Guida', value: '', icon: 'help_outline', hasArrow: true },
-  ];
+  let currentLanguage = 'it';
+  let languageChanging = false;
 
-  // Update LLM display value when provider changes
-  $: settingsItems = settingsItems.map(item =>
-    item.id === 'llm' ? { ...item, value: selectedProvider.toUpperCase() } : item
-  );
+  // Initialize from locale store
+  locale.subscribe(v => currentLanguage = v);
+
+  async function changeLanguage(newLang) {
+    if (newLang === currentLanguage || languageChanging) return;
+    languageChanging = true;
+    try {
+      const result = await updateLanguage(newLang);
+      // Update locale store
+      locale.set(newLang);
+      // Save new tokens if returned
+      if (result.access_token && result.refresh_token) {
+        saveTokens(result.access_token, result.refresh_token);
+      }
+    } catch (e) {
+      console.error('Error changing language:', e);
+    } finally {
+      languageChanging = false;
+    }
+  }
+
+  let autoSaveValue = 'ON';
+  $: settingsItems = [
+    { id: 'theme', label: $t('settings.theme'), value: 'Notte', icon: 'dark_mode' },
+    { id: 'font', label: $t('settings.font'), value: 'JetBrains Mono', icon: 'text_fields' },
+    { id: 'llm', label: $t('settings.llm_provider'), value: selectedProvider.toUpperCase(), icon: 'smart_toy', action: () => showLLMModal = true },
+    { id: 'autoSave', label: $t('settings.autosave'), value: autoSaveValue, icon: 'save' },
+    { id: 'help', label: $t('settings.guide'), value: '', icon: 'help_outline', hasArrow: true },
+  ];
 
   let selectedIndex = 0;
 
@@ -173,8 +194,7 @@
       if (item.action) {
         item.action();
       } else if (item.id === 'autoSave') {
-        item.value = item.value === 'ON' ? 'OFF' : 'ON';
-        settingsItems = [...settingsItems];
+        autoSaveValue = autoSaveValue === 'ON' ? 'OFF' : 'ON';
       }
     } else if (e.key === 'Escape' && showLLMModal) {
       closeLLMModal();
@@ -186,15 +206,14 @@
     if (item.action) {
       item.action();
     } else if (item.id === 'autoSave') {
-      item.value = item.value === 'ON' ? 'OFF' : 'ON';
-      settingsItems = [...settingsItems];
+      autoSaveValue = autoSaveValue === 'ON' ? 'OFF' : 'ON';
     }
   }
 
   async function save() {
     await saveLLMConfig();
     if (testResult?.success) {
-      alert('Impostazioni salvate!');
+      alert($t('settings.settings_saved'));
     }
   }
 
@@ -260,7 +279,7 @@
         selectedFiles = [];
       }
     } catch (e) {
-      importError = e.message || 'Errore durante l\'import';
+      importError = e.message || $t('settings.import_error');
     } finally {
       isImporting = false;
     }
@@ -295,7 +314,7 @@
       exportSuccess = true;
       setTimeout(() => exportSuccess = false, 3000);
     } catch (e) {
-      exportError = e.message || 'Errore durante l\'export';
+      exportError = e.message || $t('settings.export_error');
     } finally {
       isExporting = false;
     }
@@ -307,14 +326,14 @@
 
   async function handleRebuild() {
     if (isRebuilding) return;
-    if (!confirm('Sei sicuro di voler ricostruire la memoria? Questa operazione potrebbe richiedere del tempo.')) return;
+    if (!confirm($t('settings.rebuild_confirm'))) return;
 
     isRebuilding = true;
     try {
       await rebuildMemory();
-      alert('Memoria ricostruita con successo!');
+      alert($t('settings.rebuild_success'));
     } catch (e) {
-      alert('Errore durante la ricostruzione: ' + e.message);
+      alert($t('settings.rebuild_error') + ': ' + e.message);
     } finally {
       isRebuilding = false;
     }
@@ -322,14 +341,14 @@
 
   async function handleAnalysis() {
     if (isAnalyzing) return;
-    if (!confirm('Vuoi avviare l\'analisi della conoscenza?')) return;
+    if (!confirm($t('settings.knowledge_confirm'))) return;
 
     isAnalyzing = true;
     try {
       await triggerKnowledgeAnalysis();
-      alert('Analisi avviata in background!');
+      alert($t('settings.knowledge_started'));
     } catch (e) {
-      alert('Errore durante l\'avvio dell\'analisi: ' + e.message);
+      alert($t('settings.analysis_error') + ': ' + e.message);
     } finally {
       isAnalyzing = false;
     }
@@ -344,7 +363,7 @@
     <div class="page-header">
       <div class="title-row">
         <span class="icon">settings</span>
-        <h1 class="title">IMPOSTAZIONI</h1>
+        <h1 class="title">{$t('settings.title')}</h1>
       </div>
       {#if $currentUser}
         <div class="user-info">
@@ -376,6 +395,13 @@
           </span>
         </button>
       {/each}
+      <div class="setting-item">
+        <span class="setting-label">{$t('settings.language')}</span>
+        <div class="lang-toggle">
+          <button class="lang-opt {currentLanguage === 'it' ? 'active' : ''}" on:click={() => changeLanguage('it')} disabled={languageChanging}>IT</button>
+          <button class="lang-opt {currentLanguage === 'en' ? 'active' : ''}" on:click={() => changeLanguage('en')} disabled={languageChanging}>EN</button>
+        </div>
+      </div>
     </div>
 
     <!-- Import/Export Wrapper -->
@@ -384,7 +410,7 @@
       <div class="import-section">
         <div class="section-header">
           <span class="section-icon">upload_file</span>
-          <span class="section-title">IMPORTA DIARIO</span>
+          <span class="section-title">{$t('settings.import_diary')}</span>
         </div>
 
         <div
@@ -397,13 +423,13 @@
         >
           {#if selectedFiles.length === 0}
             <span class="drop-icon">folder_open</span>
-            <p class="drop-text">Trascina qui i tuoi file .txt</p>
-            <p class="drop-hint">oppure</p>
+            <p class="drop-text">{$t('settings.drag_files')}</p>
+            <p class="drop-hint">{$t('settings.or')}</p>
             <label class="file-select-btn">
               <input type="file" accept=".txt" multiple on:change={handleFileSelect} hidden />
-              SFOGLIA FILE
+              {$t('settings.browse_files')}
             </label>
-            <p class="drop-formats">Formati: 2024-01-15.txt, 15-01-2024.txt</p>
+            <p class="drop-formats">{$t('settings.formats')}</p>
           {:else}
             <div class="files-list">
               {#each selectedFiles as file, index}
@@ -417,15 +443,15 @@
 
             <div class="import-actions">
               <button class="clear-btn" on:click={clearFiles} disabled={isImporting}>
-                ANNULLA
+                {$t('settings.cancel')}
               </button>
               <button class="import-btn" on:click={doImport} disabled={isImporting}>
                 {#if isImporting}
                   <span class="spinner"></span>
-                  IMPORTANDO...
+                  {$t('settings.importing')}
                 {:else}
                   <span class="btn-icon">cloud_upload</span>
-                  IMPORTA {selectedFiles.length} FILE
+                  {$t('settings.import')} {selectedFiles.length} FILE
                 {/if}
               </button>
             </div>
@@ -436,8 +462,8 @@
           <div class="result-box success">
             <span class="result-icon">check_circle</span>
             <div class="result-text">
-              <strong>Import completato!</strong>
-              <p>{importResult.imported} importati, {importResult.skipped} saltati</p>
+              <strong>{$t('settings.import_complete')}</strong>
+              <p>{$t('settings.imported_skipped', { imported: importResult.imported, skipped: importResult.skipped })}</p>
             </div>
           </div>
         {/if}
@@ -446,7 +472,7 @@
           <div class="result-box error">
             <span class="result-icon">error</span>
             <div class="result-text">
-              <strong>Errore</strong>
+              <strong>{$t('settings.error')}</strong>
               <p>{importError}</p>
             </div>
           </div>
@@ -457,27 +483,27 @@
       <div class="export-section">
         <div class="section-header">
           <span class="section-icon">download</span>
-          <span class="section-title">ESPORTA BACKUP</span>
+          <span class="section-title">{$t('settings.export_backup')}</span>
         </div>
 
         <div class="export-info">
-          <p>Scarica archivio ZIP con: diario, memoria, knowledge base, emozioni</p>
+          <p>{$t('settings.export_info')}</p>
         </div>
 
         <button class="export-btn" on:click={doExport} disabled={isExporting}>
           {#if isExporting}
             <span class="spinner"></span>
-            ESPORTANDO...
+            {$t('settings.exporting')}
           {:else}
             <span class="btn-icon">archive</span>
-            SCARICA BACKUP ZIP
+            {$t('settings.download_zip')}
           {/if}
         </button>
 
         {#if exportSuccess}
           <div class="result-box success">
             <span class="result-icon">check_circle</span>
-            <span>Download avviato!</span>
+            <span>{$t('settings.export_started')}</span>
           </div>
         {/if}
 
@@ -493,27 +519,27 @@
       <div class="maintenance-section">
         <div class="section-header">
           <span class="section-icon">build</span>
-          <span class="section-title">MANUTENZIONE SISTEMA</span>
+          <span class="section-title">{$t('settings.maintenance')}</span>
         </div>
 
         <div class="maintenance-actions">
           <button class="maintenance-btn" on:click={handleRebuild} disabled={isRebuilding}>
             {#if isRebuilding}
               <span class="spinner"></span>
-              RICOSTRUZIONE...
+              {$t('settings.rebuilding')}
             {:else}
               <span class="btn-icon">memory</span>
-              RICOSTRUISCI MEMORIA
+              {$t('settings.rebuild_memory')}
             {/if}
           </button>
 
           <button class="maintenance-btn" on:click={handleAnalysis} disabled={isAnalyzing}>
             {#if isAnalyzing}
               <span class="spinner"></span>
-              ANALISI IN CORSO...
+              {$t('settings.analyzing')}
             {:else}
               <span class="btn-icon">psychology</span>
-              AGGIORNA CONOSCENZA
+              {$t('settings.update_knowledge')}
             {/if}
           </button>
         </div>
@@ -524,7 +550,7 @@
     <div class="save-section">
       <button class="save-btn" on:click={save}>
         <span class="icon">save</span>
-        SALVA IMPOSTAZIONI
+        {$t('settings.save_settings')}
       </button>
     </div>
   </div>
@@ -536,13 +562,13 @@
     <div class="modal" on:click|stopPropagation>
       <div class="modal-header">
         <span class="modal-icon">smart_toy</span>
-        <h2>CONFIGURAZIONE LLM</h2>
+        <h2>{$t('settings.llm_config')}</h2>
         <button class="modal-close" on:click={() => closeLLMModal()}>×</button>
       </div>
 
       <div class="modal-body">
         <div class="form-group">
-          <label for="provider">PROVIDER</label>
+          <label for="provider">{$t('settings.provider')}</label>
           <select id="provider" bind:value={selectedProvider} on:change={handleProviderChange}>
             {#each providers as provider}
               <option value={provider.id}>{provider.name}</option>
@@ -551,7 +577,7 @@
         </div>
 
         <div class="form-group">
-          <label for="model">MODELLO</label>
+          <label for="model">{$t('settings.model')}</label>
           <select id="model" bind:value={selectedModel}>
             {#each availableModels as model}
               <option value={model}>{model}</option>
@@ -560,14 +586,14 @@
         </div>
 
         <div class="form-group">
-          <label for="apikey">API KEY</label>
+          <label for="apikey">{$t('settings.api_key')}</label>
           <input
             type="password"
             id="apikey"
             bind:value={apiKey}
-            placeholder={hasStoredKey ? `Key salvata: ${apiKeyPreview}` : 'Inserisci la tua API key...'}
+            placeholder={hasStoredKey ? $t('settings.key_placeholder_saved', { preview: apiKeyPreview }) : $t('settings.key_placeholder_new')}
           />
-          <p class="hint">{hasStoredKey ? 'Key salvata sul server, crittografata. Lascia vuoto per mantenere quella attuale.' : 'La key verrà salvata sul server, crittografata.'}</p>
+          <p class="hint">{hasStoredKey ? $t('settings.key_saved_hint') : $t('settings.key_save_hint')}</p>
         </div>
 
         {#if testResult}
@@ -580,7 +606,7 @@
 
       <div class="modal-footer">
         <button class="modal-btn secondary" on:click={() => closeLLMModal()}>
-          ANNULLA
+          {$t('settings.modal_cancel')}
         </button>
         <button class="modal-btn primary" on:click={saveAndClose} disabled={isSaving}>
           {#if isSaving}
@@ -588,7 +614,7 @@
           {:else}
             <span class="btn-icon">save</span>
           {/if}
-          SALVA
+          {$t('settings.modal_save')}
         </button>
       </div>
     </div>
@@ -685,6 +711,51 @@
     /* Allow items to flex */
     flex: 1 1 200px; /* Grow, shrink, base width */
     min-width: 200px;
+  }
+
+  .setting-label {
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    flex: 1;
+  }
+
+  .lang-toggle {
+    display: flex;
+    gap: 0;
+  }
+
+  .lang-opt {
+    background: transparent;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    color: rgba(255, 255, 255, 0.6);
+    font-family: inherit;
+    font-size: 11px;
+    font-weight: bold;
+    letter-spacing: 0.1em;
+    padding: 5px 14px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .lang-opt:first-child {
+    border-right: none;
+  }
+
+  .lang-opt.active {
+    background: white;
+    color: black;
+    border-color: white;
+  }
+
+  .lang-opt:hover:not(.active):not(:disabled) {
+    border-color: rgba(255, 255, 255, 0.6);
+    color: white;
+  }
+
+  .lang-opt:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
   }
 
   /* ... rest of styles ... */

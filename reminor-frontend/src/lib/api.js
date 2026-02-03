@@ -264,6 +264,16 @@ export async function migrateLLMConfigToServer() {
   return null;
 }
 
+/**
+ * Update user language preference on server
+ */
+export async function updateLanguage(language) {
+  return apiCall('/auth/settings/language', {
+    method: 'PUT',
+    body: JSON.stringify({ language }),
+  });
+}
+
 export async function sendChatMessage(message, includeContext = true) {
   return apiCall(`/chat`, {
     method: 'POST',

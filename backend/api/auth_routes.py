@@ -6,7 +6,7 @@ Handles user registration, login, token refresh, and user info.
 from datetime import datetime
 from fastapi import APIRouter, HTTPException, status, Depends
 
-from models.schemas import UserCreate, UserLogin, UserResponse, TokenResponse, LLMConfigUpdate, LLMConfigResponse
+from models.schemas import UserCreate, UserLogin, UserResponse, TokenResponse, LLMConfigUpdate, LLMConfigResponse, LanguageUpdate
 from core.auth import (
     create_user,
     authenticate_user,
@@ -16,6 +16,7 @@ from core.auth import (
     get_current_user,
     get_user_llm_config,
     save_user_llm_config,
+    update_user_language,
     mask_api_key,
     decrypt_api_key,
     CurrentUser,
@@ -35,7 +36,8 @@ async def register(user_data: UserCreate):
         user = create_user(
             email=user_data.email,
             password=user_data.password,
-            name=user_data.name
+            name=user_data.name,
+            language=user_data.language or "it",
         )
     except ValueError as e:
         raise HTTPException(
@@ -115,8 +117,34 @@ async def get_current_user_info(current_user: CurrentUser = Depends(get_current_
         id=user["id"],
         email=user["email"],
         name=user.get("name"),
+        language=user.get("language", "it"),
         created_at=datetime.fromisoformat(user["created_at"]),
     )
+
+
+@router.put("/settings/language")
+async def update_language(
+    data: LanguageUpdate,
+    current_user: CurrentUser = Depends(get_current_user),
+):
+    """
+    Update language preference for the current user.
+    Returns new tokens so the frontend can refresh its state.
+    """
+    success = update_user_language(current_user.id, data.language)
+
+    if not success:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Failed to update language",
+        )
+
+    # Return new tokens so frontend can refresh
+    tokens = create_tokens(current_user.id, current_user.email)
+    return {
+        "language": data.language,
+        **tokens,
+    }
 
 
 @router.get("/settings/llm", response_model=LLMConfigResponse)
