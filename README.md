@@ -15,6 +15,20 @@ Reminor non e' un semplice diario. Ogni volta che scrivi, il sistema:
 
 Supporta italiano e inglese.
 
+## Screenshot
+
+| Dashboard | Calendario |
+|:-:|:-:|
+| ![Dashboard](screenshots/dashboard.png) | ![Calendario](screenshots/calendar.png) |
+
+| Chat AI | Emozioni settimanali |
+|:-:|:-:|
+| ![Chat AI](screenshots/chat.png) | ![Emozioni](screenshots/emotions.png) |
+
+| Statistiche |
+|:-:|
+| ![Statistiche](screenshots/statistics.png) |
+
 ## Come provarlo
 
 1. Vai su **[app.reminor.it](https://app.reminor.it)** e crea un account
