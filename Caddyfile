@@ -1,17 +1,6 @@
 # Caddyfile - Reverse proxy con SSL automatico Let's Encrypt
 # Sostituisci app.reminor.it con il tuo dominio
 
-# PV Calculator
-pvcalculator.duckdns.org {
-    encode gzip
-    reverse_proxy pv-calculator-frontend:80
-
-    log {
-        output file /var/log/caddy/pvcalculator.log
-        format console
-    }
-}
-
 app.reminor.it {
     # Abilita compressione
     encode gzip
