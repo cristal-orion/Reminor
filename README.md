@@ -1,47 +1,47 @@
 # Reminor
 
-Un diario personale potenziato dall'intelligenza artificiale. Scrivi i tuoi pensieri, e Reminor li analizza, li ricorda e ci conversa con te.
+An AI-powered personal diary. Write your thoughts, and Reminor analyzes them, remembers them, and chats with you about them.
 
-**[Prova la demo live](https://app.reminor.it)**
+**[Try the live demo](https://app.reminor.it)**
 
-## Cosa fa
+## What it does
 
-Reminor non e' un semplice diario. Ogni volta che scrivi, il sistema:
+Reminor is not just a simple diary. Every time you write, the system:
 
-- **Analizza le tue emozioni** - 8 dimensioni emotive tracciate nel tempo
-- **Costruisce una memoria semantica** - ricerca per significato, non solo parole chiave
-- **Parla con te** - una chat AI che conosce il tuo diario e il tuo contesto
-- **Mostra i tuoi trend** - statistiche, streak di scrittura, evoluzione emotiva
+- **Analyzes your emotions** - 8 emotional dimensions tracked over time
+- **Builds semantic memory** - search by meaning, not just keywords
+- **Talks with you** - an AI chat that knows your diary and your context
+- **Shows your trends** - statistics, writing streaks, emotional evolution
 
-Supporta italiano e inglese.
+Supports Italian and English.
 
-## Screenshot
+## Screenshots
 
-| Dashboard | Calendario |
+| Dashboard | Calendar |
 |:-:|:-:|
-| ![Dashboard](screenshots/dashboard.png) | ![Calendario](screenshots/calendar.png) |
+| ![Dashboard](screenshots/dashboard.png) | ![Calendar](screenshots/calendar.png) |
 
-| Chat AI | Emozioni settimanali |
+| AI Chat | Weekly Emotions |
 |:-:|:-:|
-| ![Chat AI](screenshots/chat.png) | ![Emozioni](screenshots/emotions.png) |
+| ![AI Chat](screenshots/chat.png) | ![Emotions](screenshots/emotions.png) |
 
-| Statistiche |
+| Statistics |
 |:-:|
-| ![Statistiche](screenshots/statistics.png) |
+| ![Statistics](screenshots/statistics.png) |
 
-## Come provarlo
+## How to try it
 
-1. Vai su **[app.reminor.it](https://app.reminor.it)** e crea un account
-2. Vai in **Impostazioni** > **Configura LLM** e inserisci una API key (vedi [provider supportati](#provider-supportati))
-3. Scrivi la tua prima pagina di diario e clicca **Analizza emozioni**
+1. Go to **[app.reminor.it](https://app.reminor.it)** and create an account
+2. Go to **Settings** > **Configure LLM** and enter an API key (see [supported providers](#supported-providers))
+3. Write your first diary page and click **Analyze emotions**
 
-Senza API key puoi scrivere e navigare il diario, ma la chat AI e l'analisi emotiva non funzioneranno.
+Without an API key you can write and browse the diary, but the AI chat and emotion analysis won't work.
 
-## Provider supportati
+## Supported Providers
 
-L'AI non e' inclusa: porti la tua API key. Questi i provider supportati:
+AI is not included: bring your own API key. These are the supported providers:
 
-| Provider | Modelli consigliati | Dove prendere la key |
+| Provider | Recommended Models | Where to get the key |
 |----------|-------------------|----------------------|
 | Groq | llama-3.3-70b-versatile | [console.groq.com](https://console.groq.com) |
 | Google | gemini-2.0-flash | [aistudio.google.com](https://aistudio.google.com) |
@@ -50,43 +50,43 @@ L'AI non e' inclusa: porti la tua API key. Questi i provider supportati:
 | Mistral | mistral-large-latest | [console.mistral.ai](https://console.mistral.ai) |
 | DeepSeek | deepseek-chat | [platform.deepseek.com](https://platform.deepseek.com) |
 
-**Groq** e **Google** offrono piani gratuiti sufficienti per uso personale.
+**Groq** and **Google** offer free plans sufficient for personal use.
 
-La chiave viene criptata server-side (Fernet encryption) e associata al tuo account.
+The key is encrypted server-side (Fernet encryption) and associated with your account.
 
 ## Self-hosting
 
-Vuoi installarlo sul tuo server? Serve solo Docker.
+Want to install it on your server? You only need Docker.
 
-### Deploy rapido (produzione con SSL)
+### Quick deploy (production with SSL)
 
 ```bash
 git clone https://github.com/cristal-orion/Reminor.git
 cd Reminor
 
-# Configura
+# Configure
 cp .env.production.template .env.production
-# Modifica .env.production: imposta JWT_SECRET_KEY e HF_TOKEN
-# Modifica Caddyfile: sostituisci app.reminor.it con il tuo dominio
+# Edit .env.production: set JWT_SECRET_KEY and HF_TOKEN
+# Edit Caddyfile: replace app.reminor.it with your domain
 
-# Avvia
+# Start
 docker compose -f docker-compose.prod.yml up --build -d
 ```
 
-Caddy gestisce automaticamente i certificati SSL con Let's Encrypt.
+Caddy automatically manages SSL certificates with Let's Encrypt.
 
-### Variabili d'ambiente
+### Environment Variables
 
 ```env
-# Obbligatorio
+# Required
 JWT_SECRET_KEY=...   # python -c "import secrets; print(secrets.token_hex(32))"
 
-# Per il modello di embeddings (ricerca semantica)
-HF_TOKEN=...         # Token da huggingface.co/settings/tokens
-                     # Richiede accesso a google/embeddinggemma-300m
+# For the embeddings model (semantic search)
+HF_TOKEN=...         # Token from huggingface.co/settings/tokens
+                     # Requires access to google/embeddinggemma-300m
 ```
 
-### Deploy sviluppo (locale)
+### Development deploy (local)
 
 ```bash
 # Backend
@@ -94,15 +94,15 @@ python -m venv venv && source venv/bin/activate
 pip install -r requirements.txt
 cd backend && uvicorn api.main:app --reload --port 8000
 
-# Frontend (altro terminale)
+# Frontend (another terminal)
 cd reminor-frontend && npm install && npm run dev
 ```
 
-Apri http://localhost:5173
+Open http://localhost:5173
 
 ---
 
-## Architettura
+## Architecture
 
 ```
 Browser (Svelte 5)
@@ -113,69 +113,69 @@ Browser (Svelte 5)
     v
   FastAPI (backend)
     |
-    +-- LiteLLM (chat, analisi emozioni)
-    +-- Sentence-Transformers (embeddings locali)
-    +-- Memvid (memoria semantica)
+    +-- LiteLLM (chat, emotion analysis)
+    +-- Sentence-Transformers (local embeddings)
+    +-- Memvid (semantic memory)
 ```
 
-### Tech stack
+### Tech Stack
 
-| Layer | Tecnologia |
+| Layer | Technology |
 |-------|-----------|
 | Frontend | Svelte 5, Vite |
 | Backend | FastAPI, Uvicorn, Python 3.11 |
 | AI | LiteLLM (multi-provider), Sentence-Transformers, Memvid |
-| Auth | JWT + bcrypt + Fernet (encryption API keys) |
-| Deploy | Docker, Caddy (SSL automatico) |
+| Auth | JWT + bcrypt + Fernet (API keys encryption) |
+| Deploy | Docker, Caddy (automatic SSL) |
 
-### Struttura dati
+### Data Structure
 
 ```
 data/
-+-- users.json                    # Database utenti (password bcrypt, LLM config criptata)
++-- users.json                    # Users database (bcrypt passwords, encrypted LLM config)
 +-- {user_id}/
     +-- journal/
-    |   +-- YYYY-MM-DD.txt        # Pagine diario (plain text)
-    +-- emotions.json             # Emozioni analizzate
-    +-- memory.mv2                # Memoria semantica (memvid)
+    |   +-- YYYY-MM-DD.txt        # Diary pages (plain text)
+    +-- emotions.json             # Analyzed emotions
+    +-- memory.mv2                # Semantic memory (memvid)
     +-- memory.npz                # Embeddings (sentence-transformers)
 ```
 
 ### API
 
 <details>
-<summary>Endpoints principali</summary>
+<summary>Main Endpoints</summary>
 
-**Autenticazione**
-| Endpoint | Metodo | Descrizione |
+**Authentication**
+| Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/auth/register` | POST | Registrazione |
-| `/auth/login` | POST | Login (ritorna JWT) |
-| `/auth/me` | GET | Info utente |
-| `/auth/settings/llm` | PUT | Salva configurazione LLM |
-| `/auth/settings/language` | PUT | Cambia lingua (it/en) |
+| `/auth/register` | POST | Registration |
+| `/auth/login` | POST | Login (returns JWT) |
+| `/auth/me` | GET | User info |
+| `/auth/settings/llm` | PUT | Save LLM configuration |
+| `/auth/settings/language` | PUT | Change language (it/en) |
 
-**Diario**
-| Endpoint | Metodo | Descrizione |
+**Diary**
+| Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/journal/entries` | GET | Lista pagine |
-| `/journal/entries` | POST | Salva pagina |
-| `/journal/entries/{date}` | GET | Legge pagina |
-| `/journal/entries/{date}/analyze` | POST | Analizza emozioni |
-| `/journal/entries/{date}/emotions` | GET | Emozioni salvate |
-| `/journal/search` | POST | Ricerca semantica |
-| `/journal/stats` | GET | Statistiche |
+| `/journal/entries` | GET | Pages list |
+| `/journal/entries` | POST | Save page |
+| `/journal/entries/{date}` | GET | Read page |
+| `/journal/entries/{date}/analyze` | POST | Analyze emotions |
+| `/journal/entries/{date}/emotions` | GET | Saved emotions |
+| `/journal/search` | POST | Semantic search |
+| `/journal/stats` | GET | Statistics |
 | `/journal/backup/zip` | GET | Download backup |
-| `/journal/rebuild-vectors` | POST | Ricostruisce indice semantico |
+| `/journal/rebuild-vectors` | POST | Rebuild semantic index |
 
 **Chat**
-| Endpoint | Metodo | Descrizione |
+| Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/chat` | POST | Messaggio chat AI |
+| `/chat` | POST | AI chat message |
 | `/health` | GET | Health check |
 
 </details>
 
-## Licenza
+## License
 
 MIT
