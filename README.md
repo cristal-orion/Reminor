@@ -2,7 +2,7 @@
 
 An AI-powered personal diary. Write your thoughts, and Reminor analyzes them, remembers them, and chats with you about them.
 
-**[Try the live demo](https://app.reminor.it)**
+**[Try the live demo](https://app.reminor.it)** | **[Privacy Policy](PRIVACY_POLICY_EN.md)**
 
 ## What it does
 
