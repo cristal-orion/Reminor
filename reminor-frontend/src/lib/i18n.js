@@ -89,6 +89,10 @@ const translations = {
   'home.emotions': { it: 'EMOZIONI', en: 'EMOTIONS' },
   'home.statistics': { it: 'STATISTICHE', en: 'STATISTICS' },
   'home.settings': { it: 'IMPOSTAZIONI', en: 'SETTINGS' },
+  'home.api_key_warning': {
+    it: 'API key non configurata. Chat, emozioni e analisi della conoscenza non funzioneranno. Vai alle impostazioni per configurarla.',
+    en: 'API key not configured. Chat, emotions and knowledge analysis won\'t work. Go to settings to configure it.'
+  },
 
   // ---- DIARY ----
   'diary.placeholder': { it: 'Inizia a scrivere il tuo pensiero...', en: 'Start writing your thought...' },
@@ -233,6 +237,18 @@ const translations = {
   'settings.key_placeholder_new': { it: 'Inserisci la tua API key...', en: 'Enter your API key...' },
   'settings.rebuilding': { it: 'RICOSTRUZIONE...', en: 'REBUILDING...' },
   'settings.analyzing': { it: 'ANALISI IN CORSO...', en: 'ANALYZING...' },
+  'settings.rebuild_desc': {
+    it: 'Ricostruisce l\'indice vettoriale per la ricerca semantica. Usalo se la ricerca non trova risultati corretti o dopo modifiche manuali ai file.',
+    en: 'Rebuilds the vector index for semantic search. Use if search returns incorrect results or after manual file changes.'
+  },
+  'settings.knowledge_desc': {
+    it: 'Analizza tutte le pagine del diario con l\'AI per estrarre persone, luoghi, eventi e temi. Richiede una API key configurata. Usalo se la chat non ricorda informazioni importanti.',
+    en: 'Analyzes all diary pages with AI to extract people, places, events and themes. Requires a configured API key. Use if the chat doesn\'t remember important information.'
+  },
+  'settings.maintenance_auto_note': {
+    it: 'Nota: entrambe le operazioni vengono eseguite automaticamente quando importi pagine di diario.',
+    en: 'Note: both operations run automatically when you import diary pages.'
+  },
   'settings.importing': { it: 'IMPORTING...', en: 'IMPORTING...' },
 
   // ---- EMOTION DISPLAY NAMES ----

@@ -17,18 +17,19 @@ class KnowledgeExtractor:
     Creates a persistent knowledge base that's always available to the chatbot.
     """
 
-    def __init__(self, user_dir: Path):
+    def __init__(self, user_dir: Path, api_key: Optional[str] = None):
         """
         Initialize the knowledge extractor.
 
         Args:
             user_dir: User's data directory
+            api_key: Optional API key (user-provided). Falls back to env var.
         """
         self.user_dir = Path(user_dir)
         self.knowledge_file = self.user_dir / "user_knowledge.json"
         self.journal_dir = self.user_dir / "journal"
 
-        self.api_key = os.getenv('GROQ_API_KEY')
+        self.api_key = api_key or os.getenv('GROQ_API_KEY')
         self.api_url = "https://api.groq.com/openai/v1/chat/completions"
         self.model = "llama-3.3-70b-versatile"
 

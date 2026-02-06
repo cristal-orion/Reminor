@@ -227,7 +227,7 @@ class MemoryManager:
     # ==================== IMPORT / UPLOAD ====================
 
     def import_entries(self, user_id: str, entries: List[Dict[str, str]],
-                       rebuild_vectors: bool = True) -> Dict[str, Any]:
+                       rebuild_vectors: bool = True, api_key: Optional[str] = None) -> Dict[str, Any]:
         """
         Bulk import journal entries for a user.
 
@@ -235,6 +235,7 @@ class MemoryManager:
             user_id: User ID
             entries: List of dicts with 'date', 'content', optional 'filename'
             rebuild_vectors: Whether to rebuild vector embeddings after import
+            api_key: Optional user API key for knowledge extraction
 
         Returns:
             Dict with import results
@@ -306,14 +307,14 @@ class MemoryManager:
         # Rebuild Memvid index and vectors if requested
         if rebuild_vectors and imported_dates:
             try:
-                self._rebuild_user_memory(user_id)
+                self._rebuild_user_memory(user_id, api_key=api_key)
                 results["vectorization_status"] = "completed"
             except Exception as e:
                 results["vectorization_status"] = f"error: {str(e)}"
 
         return results
 
-    def _rebuild_user_memory(self, user_id: str, extract_knowledge: bool = True):
+    def _rebuild_user_memory(self, user_id: str, extract_knowledge: bool = True, api_key: Optional[str] = None):
         """
         Rebuild Memvid index and embeddings for a user.
         Called after bulk import.
@@ -321,6 +322,7 @@ class MemoryManager:
         Args:
             user_id: User ID
             extract_knowledge: Whether to also extract/update knowledge base
+            api_key: Optional user API key for knowledge extraction
         """
         # Close existing memory instance
         self.close_user_memory(user_id)
@@ -346,17 +348,21 @@ class MemoryManager:
 
         # Extract knowledge base from diary entries
         if extract_knowledge:
-            self._extract_user_knowledge(user_id)
+            self._extract_user_knowledge(user_id, api_key=api_key)
 
-    def _extract_user_knowledge(self, user_id: str):
+    def _extract_user_knowledge(self, user_id: str, api_key: Optional[str] = None):
         """
         Extract structured knowledge from user's diary entries.
         Creates/updates the user_knowledge.json file.
+
+        Args:
+            user_id: User ID
+            api_key: Optional user API key. Falls back to env var.
         """
         user_dir = self.get_user_dir(user_id)
         try:
             print(f"[INFO] Extracting knowledge base for user {user_id}...")
-            extractor = KnowledgeExtractor(user_dir)
+            extractor = KnowledgeExtractor(user_dir, api_key=api_key)
             extractor.extract_knowledge()
             print(f"[OK] Knowledge base updated for user {user_id}")
         except Exception as e:
@@ -423,7 +429,7 @@ class MemoryManager:
         return None
 
     def import_uploaded_files(self, user_id: str, files: List[tuple],
-                               rebuild_vectors: bool = True) -> Dict[str, Any]:
+                               rebuild_vectors: bool = True, api_key: Optional[str] = None) -> Dict[str, Any]:
         """
         Import uploaded files (from FastAPI UploadFile).
 
@@ -431,6 +437,7 @@ class MemoryManager:
             user_id: User ID
             files: List of (filename, content_bytes) tuples
             rebuild_vectors: Whether to rebuild vectors after import
+            api_key: Optional user API key for knowledge extraction
 
         Returns:
             Import results dict
@@ -460,4 +467,4 @@ class MemoryManager:
                 "filename": filename
             })
 
-        return self.import_entries(user_id, entries, rebuild_vectors)
+        return self.import_entries(user_id, entries, rebuild_vectors, api_key=api_key)

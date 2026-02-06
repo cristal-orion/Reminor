@@ -404,8 +404,8 @@
       </div>
     </div>
 
-    <!-- Import/Export Wrapper -->
-    <div class="io-wrapper">
+    <!-- Import/Export Row -->
+    <div class="data-row">
       <!-- Import Section -->
       <div class="import-section">
         <div class="section-header">
@@ -514,15 +514,17 @@
           </div>
         {/if}
       </div>
+    </div>
 
-      <!-- Maintenance Section -->
-      <div class="maintenance-section">
-        <div class="section-header">
-          <span class="section-icon">build</span>
-          <span class="section-title">{$t('settings.maintenance')}</span>
-        </div>
+    <!-- Maintenance Section (full width) -->
+    <div class="maintenance-section">
+      <div class="section-header">
+        <span class="section-icon">build</span>
+        <span class="section-title">{$t('settings.maintenance')}</span>
+      </div>
 
-        <div class="maintenance-actions">
+      <div class="maintenance-actions">
+        <div class="maintenance-item">
           <button class="maintenance-btn" on:click={handleRebuild} disabled={isRebuilding}>
             {#if isRebuilding}
               <span class="spinner"></span>
@@ -532,7 +534,10 @@
               {$t('settings.rebuild_memory')}
             {/if}
           </button>
+          <p class="maintenance-desc">{$t('settings.rebuild_desc')}</p>
+        </div>
 
+        <div class="maintenance-item">
           <button class="maintenance-btn" on:click={handleAnalysis} disabled={isAnalyzing}>
             {#if isAnalyzing}
               <span class="spinner"></span>
@@ -542,8 +547,10 @@
               {$t('settings.update_knowledge')}
             {/if}
           </button>
+          <p class="maintenance-desc">{$t('settings.knowledge_desc')}</p>
         </div>
       </div>
+      <p class="maintenance-note">{$t('settings.maintenance_auto_note')}</p>
     </div>
 
     <!-- Save Button -->
@@ -761,13 +768,17 @@
   /* ... rest of styles ... */
 
   /* Sections */
-  .import-section, .export-section, .maintenance-section {
+  .import-section, .export-section {
     width: 100%;
-    /* max-width: 500px; */ /* Removed max-width */
+    margin-bottom: 0;
+    flex-shrink: 0;
+    flex: 1 1 300px;
+  }
+
+  .maintenance-section {
+    width: 100%;
     margin-bottom: 24px;
     flex-shrink: 0;
-    /* Display side-by-side on larger screens */
-    flex: 1 1 300px;
   }
   
   /* User info in header */
@@ -781,8 +792,8 @@
   /* Maintenance Section */
   .maintenance-actions {
     display: flex;
-    flex-direction: column;
-    gap: 12px;
+    flex-direction: row;
+    gap: 24px;
   }
 
   .maintenance-btn {
@@ -811,7 +822,30 @@
     opacity: 0.5;
     cursor: not-allowed;
   }
-  
+
+  .maintenance-item {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    flex: 1 1 0;
+  }
+
+  .maintenance-desc {
+    font-size: 10px;
+    color: rgba(255, 255, 255, 0.5);
+    line-height: 1.4;
+    margin: 0;
+    padding: 0 4px;
+  }
+
+  .maintenance-note {
+    font-size: 10px;
+    color: rgba(100, 255, 100, 0.6);
+    margin: 4px 0 0 0;
+    padding: 0 4px;
+    font-style: italic;
+  }
+
   .settings-container {
     flex: 1;
     display: flex;
@@ -826,12 +860,14 @@
     box-sizing: border-box;
   }
 
-  /* Layout wrapper for import/export side-by-side */
-  .io-wrapper {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 24px;
-      width: 100%;
+  /* Layout: Import/Export row (2 columns) */
+  .data-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 24px;
+    width: 100%;
+    margin-bottom: 24px;
+    align-items: flex-start;
   }
 
 

@@ -637,8 +637,11 @@ async def trigger_knowledge_extraction(
     This analyzes all diary entries to build user_knowledge.json.
     """
     user_id = current_user.id
+    # Get user's API key for LLM calls
+    saved_config = get_user_llm_config(user_id)
+    user_api_key = saved_config.get("api_key") if saved_config else None
     try:
-        mm._extract_user_knowledge(user_id)
+        mm._extract_user_knowledge(user_id, api_key=user_api_key)
         return {"status": "success", "message": "Knowledge extraction completed"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Extraction failed: {str(e)}")
@@ -671,8 +674,12 @@ async def upload_files(
         content = await file.read()
         file_data.append((file.filename, content))
 
+    # Get user's API key for knowledge extraction
+    saved_config = get_user_llm_config(user_id)
+    user_api_key = saved_config.get("api_key") if saved_config else None
+
     # Import files
-    result = mm.import_uploaded_files(user_id, file_data, rebuild_vectors)
+    result = mm.import_uploaded_files(user_id, file_data, rebuild_vectors, api_key=user_api_key)
 
     return ImportResponse(
         total_files=result["total_files"],
@@ -722,7 +729,11 @@ async def bulk_import(
         for e in request.entries
     ]
 
-    result = mm.import_entries(user_id, entries, request.rebuild_vectors)
+    # Get user's API key for knowledge extraction
+    saved_config = get_user_llm_config(user_id)
+    user_api_key = saved_config.get("api_key") if saved_config else None
+
+    result = mm.import_entries(user_id, entries, request.rebuild_vectors, api_key=user_api_key)
 
     return ImportResponse(
         total_files=result["total_files"],
@@ -753,8 +764,11 @@ async def rebuild_vectors(
     Useful after manual file changes or to fix corrupted index.
     """
     user_id = current_user.id
+    # Get user's API key for knowledge extraction
+    saved_config = get_user_llm_config(user_id)
+    user_api_key = saved_config.get("api_key") if saved_config else None
     try:
-        mm._rebuild_user_memory(user_id)
+        mm._rebuild_user_memory(user_id, api_key=user_api_key)
         memory = mm.get_user_memory(user_id)
 
         return {

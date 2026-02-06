@@ -3,7 +3,13 @@
     "allow": [
       "Bash(python -m venv:*)",
       "Bash(venvScriptspip install -r requirements.txt)",
-      "Bash(docker compose:*)"
+      "Bash(docker compose:*)",
+      "Bash(python3:*)",
+      "Bash(docker exec:*)",
+      "Bash(npm run build:*)",
+      "Bash(done)",
+      "Bash(docker images:*)",
+      "Bash(curl:*)"
     ]
   }
 }
