@@ -91,12 +91,13 @@ class KnowledgeExtractor:
 
         return entries
 
-    def extract_knowledge(self, entries: Optional[Dict[str, str]] = None) -> Dict[str, Any]:
+    def extract_knowledge(self, entries: Optional[Dict[str, str]] = None, language: str = "it") -> Dict[str, Any]:
         """
         Extract structured knowledge from diary entries using LLM.
 
         Args:
             entries: Dict of date -> content. If None, reads from journal_dir.
+            language: Language for extraction prompts ("it" or "en")
 
         Returns:
             Updated knowledge dictionary
@@ -127,10 +128,10 @@ class KnowledgeExtractor:
             print(f"[INFO] Diary truncated to last {max_chars} characters")
 
         # Build extraction prompt
-        extraction_prompt = self._build_extraction_prompt(diary_text)
+        extraction_prompt = self._build_extraction_prompt(diary_text, language)
 
         try:
-            response = self._call_llm(extraction_prompt)
+            response = self._call_llm(extraction_prompt, language)
             if response:
                 self._parse_extraction_response(response, len(entries))
                 self.save_knowledge()
@@ -140,8 +141,40 @@ class KnowledgeExtractor:
 
         return self.knowledge
 
-    def _build_extraction_prompt(self, diary_text: str) -> str:
+    def _build_extraction_prompt(self, diary_text: str, language: str = "it") -> str:
         """Build the prompt for knowledge extraction"""
+        if language == "en":
+            return f"""Analyze this personal diary and extract key information in JSON format.
+
+DIARY:
+{diary_text}
+
+Extract and return ONLY valid JSON with this exact structure:
+
+{{
+  "people": [
+    {{"name": "Name", "relationship": "relationship with the author", "context": "brief context of how they appear in the diary", "sentiment": "positive/negative/neutral/complicated"}}
+  ],
+  "places": [
+    {{"name": "Place name", "type": "city/venue/nature/other", "context": "what happened there", "frequency": "once/recurring"}}
+  ],
+  "events": [
+    {{"date": "YYYY-MM-DD if known", "description": "brief description", "importance": "high/medium/low", "emotions": ["emotion1", "emotion2"]}}
+  ],
+  "emotional_patterns": [
+    {{"pattern": "pattern description", "triggers": ["trigger1", "trigger2"], "frequency": "often/sometimes/rarely"}}
+  ],
+  "themes": ["theme1", "theme2", "theme3"],
+  "summary": "A 2-3 sentence summary of the person writing this diary, their character, and their main concerns"
+}}
+
+RULES:
+- Extract ONLY information EXPLICITLY present in the diary
+- DO NOT invent details
+- Keep names exactly as written
+- The summary must be in third person
+- Reply ONLY with the JSON, no other text"""
+
         return f"""Analizza questo diario personale e estrai le informazioni chiave in formato JSON.
 
 DIARIO:
@@ -173,17 +206,23 @@ REGOLE:
 - Il summary deve essere in terza persona
 - Rispondi SOLO con il JSON, nessun altro testo"""
 
-    def _call_llm(self, prompt: str) -> Optional[str]:
+    def _call_llm(self, prompt: str, language: str = "it") -> Optional[str]:
         """Call Groq LLM API"""
         headers = {
             "Content-Type": "application/json",
             "Authorization": f"Bearer {self.api_key}"
         }
 
+        system_msg = (
+            "You are an analyst extracting structured information from texts. Reply ONLY with valid JSON."
+            if language == "en"
+            else "Sei un analista che estrae informazioni strutturate da testi. Rispondi SOLO con JSON valido."
+        )
+
         payload = {
             "model": self.model,
             "messages": [
-                {"role": "system", "content": "Sei un analista che estrae informazioni strutturate da testi. Rispondi SOLO con JSON valido."},
+                {"role": "system", "content": system_msg},
                 {"role": "user", "content": prompt}
             ],
             "max_tokens": 4000,
@@ -241,21 +280,48 @@ REGOLE:
             print(f"[ERROR] Failed to parse JSON response: {e}")
             print(f"[DEBUG] Response was: {response[:500]}...")
 
-    def get_knowledge_for_prompt(self) -> str:
+    def get_knowledge_for_prompt(self, language: str = "it") -> str:
         """
         Format knowledge base for inclusion in chat prompt.
+
+        Args:
+            language: Language for section headers ("it" or "en")
 
         Returns:
             Formatted string for system prompt
         """
         if not self.knowledge.get("entries_analyzed", 0):
+            if language == "en":
+                return "No knowledge base available. Information will be extracted from search."
             return "Nessuna knowledge base disponibile. Le informazioni verranno estratte dalla ricerca."
+
+        # Bilingual section headers
+        if language == "en":
+            h_summary = "## About the user"
+            h_people = "## Important people"
+            h_places = "## Significant places"
+            h_events = "## Key events"
+            h_themes = "## Recurring themes"
+            h_patterns = "## Emotional patterns"
+            neutral_sentiment = "neutral"
+            high_importance = "high"
+            empty_msg = "Knowledge base empty."
+        else:
+            h_summary = "## Chi e' l'utente"
+            h_people = "## Persone importanti"
+            h_places = "## Luoghi significativi"
+            h_events = "## Eventi chiave"
+            h_themes = "## Temi ricorrenti"
+            h_patterns = "## Pattern emotivi"
+            neutral_sentiment = "neutro"
+            high_importance = "alta"
+            empty_msg = "Knowledge base vuota."
 
         parts = []
 
         # Summary
         if self.knowledge.get("summary"):
-            parts.append(f"## Chi e' l'utente\n{self.knowledge['summary']}")
+            parts.append(f"{h_summary}\n{self.knowledge['summary']}")
 
         # People
         people = self.knowledge.get("people", [])
@@ -271,10 +337,10 @@ REGOLE:
                     line += f" ({rel})"
                 if ctx:
                     line += f": {ctx}"
-                if sentiment and sentiment != "neutro":
+                if sentiment and sentiment != neutral_sentiment and sentiment != "neutro" and sentiment != "neutral":
                     line += f" [{sentiment}]"
                 people_lines.append(line)
-            parts.append("## Persone importanti\n" + "\n".join(people_lines))
+            parts.append(f"{h_people}\n" + "\n".join(people_lines))
 
         # Places
         places = self.knowledge.get("places", [])
@@ -287,11 +353,11 @@ REGOLE:
                 if ctx:
                     line += f": {ctx}"
                 places_lines.append(line)
-            parts.append("## Luoghi significativi\n" + "\n".join(places_lines))
+            parts.append(f"{h_places}\n" + "\n".join(places_lines))
 
-        # Key events
+        # Key events - match both Italian and English importance values
         events = self.knowledge.get("events", [])
-        important_events = [e for e in events if e.get("importance") == "alta"][:5]
+        important_events = [e for e in events if e.get("importance") in ("alta", "high")][:5]
         if important_events:
             events_lines = []
             for e in important_events:
@@ -301,12 +367,12 @@ REGOLE:
                 if date:
                     line = f"- **{date}**: {desc}"
                 events_lines.append(line)
-            parts.append("## Eventi chiave\n" + "\n".join(events_lines))
+            parts.append(f"{h_events}\n" + "\n".join(events_lines))
 
         # Themes
         themes = self.knowledge.get("themes", [])
         if themes:
-            parts.append(f"## Temi ricorrenti\n{', '.join(themes[:6])}")
+            parts.append(f"{h_themes}\n{', '.join(themes[:6])}")
 
         # Emotional patterns
         patterns = self.knowledge.get("emotional_patterns", [])
@@ -317,9 +383,9 @@ REGOLE:
                 if pattern:
                     patterns_lines.append(f"- {pattern}")
             if patterns_lines:
-                parts.append("## Pattern emotivi\n" + "\n".join(patterns_lines))
+                parts.append(f"{h_patterns}\n" + "\n".join(patterns_lines))
 
-        return "\n\n".join(parts) if parts else "Knowledge base vuota."
+        return "\n\n".join(parts) if parts else empty_msg
 
     def needs_update(self, current_entries_count: int) -> bool:
         """Check if knowledge base needs updating"""

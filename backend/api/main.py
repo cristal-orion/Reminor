@@ -641,7 +641,7 @@ async def trigger_knowledge_extraction(
     saved_config = get_user_llm_config(user_id)
     user_api_key = saved_config.get("api_key") if saved_config else None
     try:
-        mm._extract_user_knowledge(user_id, api_key=user_api_key)
+        mm._extract_user_knowledge(user_id, api_key=user_api_key, language=current_user.language)
         return {"status": "success", "message": "Knowledge extraction completed"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Extraction failed: {str(e)}")

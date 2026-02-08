@@ -238,12 +238,17 @@ class EnhancedEmotionsAnalyzer:
         litellm_model = self.get_litellm_model(provider, model)
 
         # Costruisci il prompt per l'analisi completa
-        prompt = self._build_analysis_prompt(text_content)
+        prompt = self._build_analysis_prompt(text_content, language)
+
+        if language == "en":
+            system_content = "You are an expert psychologist specialized in emotional analysis of autobiographical texts. Your task is to identify the emotions present in personal diaries with precision and sensitivity. ALWAYS reply ONLY with valid JSON, without any additional text before or after. If you cannot analyze the text, return valid JSON with 0.0 values anyway."
+        else:
+            system_content = "Sei un esperto psicologo specializzato nell'analisi emotiva di testi autobiografici. Il tuo compito è identificare le emozioni presenti nei diari personali con precisione e sensibilità. Rispondi SEMPRE e SOLO con JSON valido, senza alcun testo aggiuntivo prima o dopo. Se non riesci ad analizzare il testo, restituisci comunque un JSON valido con valori 0.0."
 
         messages = [
             {
                 "role": "system",
-                "content": "Sei un esperto psicologo specializzato nell'analisi emotiva di testi autobiografici. Il tuo compito è identificare le emozioni presenti nei diari personali con precisione e sensibilità. Rispondi SEMPRE e SOLO con JSON valido, senza alcun testo aggiuntivo prima o dopo. Se non riesci ad analizzare il testo, restituisci comunque un JSON valido con valori 0.0."
+                "content": system_content
             },
             {"role": "user", "content": prompt}
         ]
@@ -328,10 +333,54 @@ class EnhancedEmotionsAnalyzer:
                 "message": msg
             }
 
-    def _build_analysis_prompt(self, text_content: str) -> str:
+    def _build_analysis_prompt(self, text_content: str, language: str = "it") -> str:
         """Costruisce il prompt per l'analisi emotiva approfondita"""
         # Limita il testo per evitare problemi di token
         text_excerpt = text_content[:2500]
+
+        if language == "en":
+            return f"""You are an expert psychologist. Carefully analyze this personal diary entry and identify the emotions present.
+
+ANALYSIS CRITERIA:
+- felice: joy, contentment, satisfaction, enthusiasm, euphoria
+- triste: sadness, melancholy, nostalgia, discouragement, emotional pain
+- arrabbiato: anger, frustration, irritation, resentment, indignation
+- ansioso: anxiety, worry, nervousness, agitation, restlessness
+- sereno: calm, tranquility, inner peace, relaxation, balance
+- stressato: stress, pressure, overload, tension, exhaustion
+- grato: gratitude, appreciation, thankfulness, feeling fortunate
+- motivato: motivation, determination, positive energy, drive
+
+INSTRUCTIONS:
+1. Read the text carefully looking for explicit and implicit emotional indicators
+2. Consider the overall tone, keywords, and context
+3. Assign scores from 0.0 to 1.0 where 0.0 = absent, 0.3 = slight, 0.5 = moderate, 0.7 = strong, 1.0 = very intense
+4. Multiple emotions can be present simultaneously
+5. If the text is neutral or descriptive, assign low but non-zero scores to sereno
+
+TEXT TO ANALYZE:
+---
+{text_excerpt}
+---
+
+Reply ONLY with this exact JSON (no text before or after):
+{{
+  "emotions": {{
+    "felice": 0.0,
+    "triste": 0.0,
+    "arrabbiato": 0.0,
+    "ansioso": 0.0,
+    "sereno": 0.0,
+    "stressato": 0.0,
+    "grato": 0.0,
+    "motivato": 0.0
+  }},
+  "daily_insights": {{
+    "mood_summary": "a sentence describing the dominant emotional state",
+    "energy_level": 0.5
+  }},
+  "profile_updates": {{}}
+}}"""
 
         return f"""Sei un esperto psicologo. Analizza attentamente questa voce di diario personale e identifica le emozioni presenti.
 

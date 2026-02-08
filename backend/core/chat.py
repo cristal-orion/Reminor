@@ -409,7 +409,7 @@ Sei l'AI di Reminor, il compagno digitale che ha letto il diario dell'utente.
         knowledge = ""
         if include_context:
             context = self.get_intelligent_context(user_id, message, language=language)
-            knowledge = self.memory_manager.get_user_knowledge(user_id)
+            knowledge = self.memory_manager.get_user_knowledge(user_id, language=language)
 
         # Use knowledge base name as fallback if user_name not provided
         effective_user_name = user_name
@@ -478,6 +478,16 @@ Sei l'AI di Reminor, il compagno digitale che ha letto il diario dell'utente.
             if "api key" in error_msg or "api_key" in error_msg or "invalid api" in error_msg:
                 return {
                     "response": t("chat.api_key_invalid", language, provider=provider),
+                    "error": True
+                }
+            if "405" in error_msg or "method not allowed" in error_msg:
+                detail = (
+                    f"The provider '{provider}' returned a 405 error. This usually means the model or endpoint is not available. Check your provider/model settings."
+                    if language == "en"
+                    else f"Il provider '{provider}' ha restituito un errore 405. Questo di solito significa che il modello o l'endpoint non e' disponibile. Controlla le impostazioni del provider/modello."
+                )
+                return {
+                    "response": detail,
                     "error": True
                 }
             return {

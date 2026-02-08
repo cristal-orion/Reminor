@@ -350,7 +350,7 @@ class MemoryManager:
         if extract_knowledge:
             self._extract_user_knowledge(user_id, api_key=api_key)
 
-    def _extract_user_knowledge(self, user_id: str, api_key: Optional[str] = None):
+    def _extract_user_knowledge(self, user_id: str, api_key: Optional[str] = None, language: str = "it"):
         """
         Extract structured knowledge from user's diary entries.
         Creates/updates the user_knowledge.json file.
@@ -358,19 +358,24 @@ class MemoryManager:
         Args:
             user_id: User ID
             api_key: Optional user API key. Falls back to env var.
+            language: Language for extraction prompts ("it" or "en")
         """
         user_dir = self.get_user_dir(user_id)
         try:
             print(f"[INFO] Extracting knowledge base for user {user_id}...")
             extractor = KnowledgeExtractor(user_dir, api_key=api_key)
-            extractor.extract_knowledge()
+            extractor.extract_knowledge(language=language)
             print(f"[OK] Knowledge base updated for user {user_id}")
         except Exception as e:
             print(f"[WARNING] Knowledge extraction failed: {e}")
 
-    def get_user_knowledge(self, user_id: str) -> str:
+    def get_user_knowledge(self, user_id: str, language: str = "it") -> str:
         """
         Get formatted knowledge base for a user (for chat prompt).
+
+        Args:
+            user_id: User ID
+            language: Language for section headers ("it" or "en")
 
         Returns:
             Formatted knowledge string for inclusion in prompt
@@ -378,7 +383,7 @@ class MemoryManager:
         user_dir = self.get_user_dir(user_id)
         try:
             extractor = KnowledgeExtractor(user_dir)
-            return extractor.get_knowledge_for_prompt()
+            return extractor.get_knowledge_for_prompt(language=language)
         except Exception as e:
             print(f"[WARNING] Error loading knowledge: {e}")
             return ""
