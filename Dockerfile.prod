@@ -14,6 +14,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # Copia requirements e installa dipendenze Python
 COPY requirements.txt .
+# Install PyTorch CPU-only first (avoids downloading ~3GB of unused NVIDIA/CUDA libraries)
+RUN pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copia il codice backend
