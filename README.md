@@ -66,7 +66,7 @@ cd Reminor
 
 # Configure
 cp .env.production.template .env.production
-# Edit .env.production: set JWT_SECRET_KEY, HF_TOKEN, and DOMAIN
+# Edit .env.production: set JWT_SECRET_KEY and DOMAIN
 
 # Start
 docker compose -f docker-compose.prod.yml up --build -d
@@ -81,13 +81,11 @@ Set `DOMAIN=yourdomain.com` in `.env.production` for automatic SSL via Let's Enc
 # Required
 JWT_SECRET_KEY=...   # python -c "import secrets; print(secrets.token_hex(32))"
 
-# For the embeddings model (semantic search)
-HF_TOKEN=...         # Token from huggingface.co/settings/tokens
-                     # Requires access to google/embeddinggemma-300m
-
 # Domain (optional, defaults to :80 for local/IP access)
 DOMAIN=:80           # or yourdomain.com for automatic SSL
 ```
+
+The embedding model (`embeddinggemma-300m`) downloads automatically on first startup — no HuggingFace token needed.
 
 ### Development deploy (local)
 

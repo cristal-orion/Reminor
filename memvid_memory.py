@@ -22,8 +22,8 @@ try:
     from sentence_transformers import SentenceTransformer
     import numpy as np
     HAS_EMBEDDINGS = True
-    # Modello italiano specifico con Matryoshka (può essere troncato a dimensioni minori)
-    EMBEDDING_MODEL = "google/embeddinggemma-300m"
+    # Ungated mirror of google/embeddinggemma-300m (identical weights, no HF token needed)
+    EMBEDDING_MODEL = "unsloth/embeddinggemma-300m"
 except ImportError:
     HAS_EMBEDDINGS = False
     EMBEDDING_MODEL = None
