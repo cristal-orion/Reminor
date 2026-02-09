@@ -1,17 +1,19 @@
-# Caddyfile - Reverse proxy con SSL automatico Let's Encrypt
-# Sostituisci app.reminor.it con il tuo dominio
+# Caddyfile - Reverse proxy for Reminor
+# Domain is configured via DOMAIN env var in .env.production
+# Default :80 = plain HTTP on all interfaces (for local/IP access)
+# Set DOMAIN=yourdomain.com for automatic SSL via Let's Encrypt
 
-app.reminor.it {
-    # Abilita compressione
+{$DOMAIN::80} {
+    # Enable compression
     encode gzip
 
-    # API Backend - proxy a FastAPI
+    # API Backend - proxy to FastAPI
     handle /api/* {
         uri strip_prefix /api
         reverse_proxy backend:8000
     }
 
-    # Auth endpoints - proxy diretto
+    # Auth endpoints
     handle /auth/* {
         reverse_proxy backend:8000
     }
@@ -31,14 +33,14 @@ app.reminor.it {
         reverse_proxy backend:8000
     }
 
-    # Frontend - file statici
+    # Frontend - static files
     handle {
         root * /srv/frontend
         try_files {path} /index.html
         file_server
     }
 
-    # Headers di sicurezza
+    # Security headers
     header {
         X-Content-Type-Options nosniff
         X-Frame-Options DENY

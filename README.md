@@ -58,7 +58,7 @@ The key is encrypted server-side (Fernet encryption) and associated with your ac
 
 Want to install it on your server? You only need Docker.
 
-### Quick deploy (production with SSL)
+### Quick deploy (production)
 
 ```bash
 git clone https://github.com/cristal-orion/Reminor.git
@@ -66,14 +66,14 @@ cd Reminor
 
 # Configure
 cp .env.production.template .env.production
-# Edit .env.production: set JWT_SECRET_KEY and HF_TOKEN
-# Edit Caddyfile: replace app.reminor.it with your domain
+# Edit .env.production: set JWT_SECRET_KEY, HF_TOKEN, and DOMAIN
 
 # Start
 docker compose -f docker-compose.prod.yml up --build -d
 ```
 
-Caddy automatically manages SSL certificates with Let's Encrypt.
+By default `DOMAIN=:80` serves over plain HTTP on all interfaces — access via `http://<your-ip>`.
+Set `DOMAIN=yourdomain.com` in `.env.production` for automatic SSL via Let's Encrypt.
 
 ### Environment Variables
 
@@ -84,6 +84,9 @@ JWT_SECRET_KEY=...   # python -c "import secrets; print(secrets.token_hex(32))"
 # For the embeddings model (semantic search)
 HF_TOKEN=...         # Token from huggingface.co/settings/tokens
                      # Requires access to google/embeddinggemma-300m
+
+# Domain (optional, defaults to :80 for local/IP access)
+DOMAIN=:80           # or yourdomain.com for automatic SSL
 ```
 
 ### Development deploy (local)
