@@ -39,7 +39,11 @@ export const settings = writable({
 // ==================== DIARY STORES ====================
 
 // Current date for diary
-export const selectedDate = writable(new Date().toISOString().split('T')[0]);
+// Format today as YYYY-MM-DD in local timezone (not UTC)
+export const selectedDate = writable((() => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+})());
 
 // Loading state
 export const isLoading = writable(false);

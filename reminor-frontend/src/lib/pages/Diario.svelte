@@ -1,16 +1,21 @@
 <script>
   import { onMount, onDestroy } from 'svelte';
-  import { currentUser, selectedDate, isLoading, entriesCache, diaryCache } from '../stores.js';
+  import { currentUser, selectedDate, isLoading, entriesCache, diaryCache, settings } from '../stores.js';
   import { getEntry, saveEntry, analyzeEmotions, getEmotions } from '../api.js';
   import { t, locale, getEmotionDisplayName } from '../i18n.js';
 
   let content = '';
+  let savedContent = '';  // Track last saved content for dirty detection
   let wordCount = 0;
   let charCount = 0;
   let isSaving = false;
   let lastSaved = null;
   let emotions = null;
   let showEmotions = false;
+  let autoSaveInterval = null;
+
+  // Dirty state: content differs from last saved version
+  $: isDirty = content !== savedContent;
 
   // The 8 emotions to track
   const emotionTypes = [
@@ -18,12 +23,15 @@
     'Sereno', 'Stressato', 'Grato', 'Motivato'
   ];
 
-  // Format date for display
-  $: displayDate = new Date($selectedDate).toLocaleDateString($locale === 'en' ? 'en-US' : 'it-IT', {
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric'
-  }).toUpperCase();
+  // Format date for display (parse as local time, not UTC)
+  $: displayDate = (() => {
+    const [y, m, d] = $selectedDate.split('-');
+    return new Date(y, m - 1, d).toLocaleDateString($locale === 'en' ? 'en-US' : 'it-IT', {
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric'
+    }).toUpperCase();
+  })();
 
   // Count words and chars
   $: {
@@ -59,6 +67,7 @@
     const cached = $diaryCache[cacheKey];
     if (cached) {
       content = cached.content || '';
+      savedContent = content;
       emotions = cached.emotions || null;
       return;
     }
@@ -75,6 +84,7 @@
         const saved = localStorage.getItem(getStorageKey($selectedDate));
         content = saved || '';
       }
+      savedContent = content;
 
       // Try to load existing emotions
       try {
@@ -119,6 +129,7 @@
         localStorage.setItem(getStorageKey($selectedDate), content);
       }
 
+      savedContent = content;
       lastSaved = new Date().toLocaleTimeString($locale === 'en' ? 'en-US' : 'it-IT');
 
       // Analyze emotions after save
@@ -202,6 +213,47 @@
     URL.revokeObjectURL(url);
   }
 
+  // Quiet auto-save: saves content without triggering emotion analysis
+  async function autoSave() {
+    if (isSaving || !content.trim() || content === savedContent) return;
+    try {
+      isSaving = true;
+      try {
+        await saveEntry($selectedDate, content);
+        invalidateCalendarCache($selectedDate);
+      } catch (e) {
+        localStorage.setItem(getStorageKey($selectedDate), content);
+      }
+      savedContent = content;
+      lastSaved = new Date().toLocaleTimeString($locale === 'en' ? 'en-US' : 'it-IT');
+
+      const userId = $currentUser?.id || 'anon';
+      const cacheKey = `${userId}-${$selectedDate}`;
+      diaryCache.update(cache => {
+        cache[cacheKey] = { content, emotions };
+        return cache;
+      });
+    } catch (e) {
+      console.error('Auto-save failed:', e);
+    } finally {
+      isSaving = false;
+    }
+  }
+
+  function setupAutoSave() {
+    clearInterval(autoSaveInterval);
+    if ($settings.autoSave) {
+      autoSaveInterval = setInterval(autoSave, 30000);
+    }
+  }
+
+  function handleBeforeUnload(e) {
+    if (isDirty) {
+      e.preventDefault();
+      e.returnValue = '';
+    }
+  }
+
   function handleKeydown(e) {
     if (e.ctrlKey && e.key === 's') {
       e.preventDefault();
@@ -218,12 +270,19 @@
 
   onMount(() => {
     loadEntry();
+    setupAutoSave();
     window.addEventListener('keydown', handleKeydown);
+    window.addEventListener('beforeunload', handleBeforeUnload);
   });
 
   onDestroy(() => {
+    clearInterval(autoSaveInterval);
     window.removeEventListener('keydown', handleKeydown);
+    window.removeEventListener('beforeunload', handleBeforeUnload);
   });
+
+  // React to autoSave setting changes
+  $: if ($settings.autoSave !== undefined) setupAutoSave();
 </script>
 
 <div class="diario-container">
@@ -320,7 +379,12 @@
         <span class="icon">memory</span>
         {$t('diary.status')} <span class="status-value">{isSaving ? $t('diary.status_saving') : $t('diary.status_idle')}</span>
       </span>
-      {#if lastSaved}
+      {#if isDirty}
+        <span class="status-item unsaved">
+          <span class="icon">edit_note</span>
+          {$t('diary.status_unsaved')}
+        </span>
+      {:else if lastSaved}
         <span class="status-item dimmed">
           <span class="icon">cloud_done</span>
           {$t('diary.status_saved')} {lastSaved}
@@ -613,6 +677,10 @@
 
   .status-item.dimmed {
     opacity: 0.5;
+  }
+
+  .status-item.unsaved {
+    color: #ffaa00;
   }
 
   .status-value {

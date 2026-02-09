@@ -108,6 +108,7 @@ const translations = {
   'diary.status_idle': { it: 'IDLE', en: 'IDLE' },
   'diary.status_saved': { it: 'SAVED:', en: 'SAVED:' },
   'diary.emotions_shortcut': { it: '[F2] EMOZIONI', en: '[F2] EMOTIONS' },
+  'diary.status_unsaved': { it: 'NON SALVATO', en: 'UNSAVED' },
 
   // ---- CHAT ----
   'chat.title': { it: 'AI_THOUGHT_PROCESSOR // SESSION_042', en: 'AI_THOUGHT_PROCESSOR // SESSION_042' },

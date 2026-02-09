@@ -162,7 +162,7 @@
     }
   }
 
-  let autoSaveValue = 'ON';
+  let autoSaveValue = $settings.autoSave ? 'ON' : 'OFF';
   $: settingsItems = [
     { id: 'theme', label: $t('settings.theme'), value: 'Notte', icon: 'dark_mode' },
     { id: 'font', label: $t('settings.font'), value: 'JetBrains Mono', icon: 'text_fields' },
@@ -195,6 +195,7 @@
         item.action();
       } else if (item.id === 'autoSave') {
         autoSaveValue = autoSaveValue === 'ON' ? 'OFF' : 'ON';
+        settings.update(s => ({ ...s, autoSave: autoSaveValue === 'ON' }));
       }
     } else if (e.key === 'Escape' && showLLMModal) {
       closeLLMModal();
@@ -207,6 +208,7 @@
       item.action();
     } else if (item.id === 'autoSave') {
       autoSaveValue = autoSaveValue === 'ON' ? 'OFF' : 'ON';
+      settings.update(s => ({ ...s, autoSave: autoSaveValue === 'ON' }));
     }
   }
 
