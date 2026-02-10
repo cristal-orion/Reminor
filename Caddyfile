@@ -3,6 +3,17 @@
 # Default :80 = plain HTTP on all interfaces (for local/IP access)
 # Set DOMAIN=yourdomain.com for automatic SSL via Let's Encrypt
 
+# PV Calculator (frontend only - backend stays on pv-network)
+pvcalculator.duckdns.org {
+    encode gzip
+    reverse_proxy pv-calculator-frontend:80
+
+    log {
+        output file /var/log/caddy/pvcalculator.log
+        format console
+    }
+}
+
 {$DOMAIN::80} {
     # Enable compression
     encode gzip
