@@ -92,6 +92,9 @@ The embedding model (`embeddinggemma-300m`) downloads automatically on first sta
 ```bash
 # Backend
 python -m venv venv && source venv/bin/activate
+# Install CPU-only PyTorch first (avoids ~3GB of unused NVIDIA/CUDA libraries;
+# required on ARM devices like Raspberry Pi, and recommended on low-memory systems)
+pip install torch --index-url https://download.pytorch.org/whl/cpu
 pip install -r requirements.txt
 cd backend && uvicorn api.main:app --reload --port 8000
 
@@ -100,6 +103,8 @@ cd reminor-frontend && npm install && npm run dev
 ```
 
 Open http://localhost:5173
+
+> **Raspberry Pi / ARM users**: use 64-bit Raspberry Pi OS (Bookworm) and Python 3.11. The CPU-only PyTorch step above is mandatory — without it, pip will try to install NVIDIA CUDA packages that don't exist for ARM64 and the install will fail.
 
 ---
 
